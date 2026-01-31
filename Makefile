@@ -19,7 +19,7 @@ LIB_TARGET = libpagerctl.so
 
 # Source files
 LIB_SRCS = $(SRC_DIR)/pagerctl.c
-DEPS = $(SRC_DIR)/stb_truetype.h $(SRC_DIR)/pagerctl.h
+DEPS = $(SRC_DIR)/stb_truetype.h $(SRC_DIR)/stb_image.h $(SRC_DIR)/pagerctl.h
 
 # Default: build shared library
 all: $(PAYLOAD_DIR)/$(LIB_TARGET)
@@ -41,7 +41,7 @@ docker:
 remote-build:
 	@echo "Building on remote server root@brainphreak..."
 	ssh root@brainphreak "rm -rf /tmp/pagerctl_build && mkdir -p /tmp/pagerctl_build && chmod 777 /tmp/pagerctl_build"
-	scp $(SRC_DIR)/pagerctl.c $(SRC_DIR)/pagerctl.h $(SRC_DIR)/stb_truetype.h \
+	scp $(SRC_DIR)/pagerctl.c $(SRC_DIR)/pagerctl.h $(SRC_DIR)/stb_truetype.h $(SRC_DIR)/stb_image.h \
 		root@brainphreak:/tmp/pagerctl_build/
 	ssh root@brainphreak 'docker run --rm -v /tmp/pagerctl_build:/src -w /src openwrt/sdk:mipsel_24kc-22.03.5 bash -c " \
 		export PATH=/builder/staging_dir/toolchain-mipsel_24kc_gcc-11.2.0_musl/bin:\$$PATH && \
@@ -67,7 +67,7 @@ demo: $(PAYLOAD_DIR)/$(LIB_TARGET)
 remote-demo:
 	@echo "Building C demo on remote server root@brainphreak..."
 	ssh root@brainphreak "mkdir -p /tmp/pagerctl_build"
-	scp $(DEMO_SRC) $(SRC_DIR)/pagerctl.h $(SRC_DIR)/stb_truetype.h \
+	scp $(DEMO_SRC) $(SRC_DIR)/pagerctl.h $(SRC_DIR)/stb_truetype.h $(SRC_DIR)/stb_image.h \
 		$(PAYLOAD_DIR)/libpagerctl.so root@brainphreak:/tmp/pagerctl_build/
 	ssh root@brainphreak 'docker run --rm -v /tmp/pagerctl_build:/src -w /src openwrt/sdk:mipsel_24kc-22.03.5 bash -c " \
 		export PATH=/builder/staging_dir/toolchain-mipsel_24kc_gcc-11.2.0_musl/bin:\$$PATH && \
@@ -95,18 +95,23 @@ PAGER_DEST ?= /root/payloads/user/examples/PAGERCTL
 
 deploy:
 	@echo "Deploying to Pager at $(PAGER_IP)..."
-	ssh root@$(PAGER_IP) "mkdir -p $(PAGER_DEST)/examples $(PAGER_DEST)/fonts"
+	ssh root@$(PAGER_IP) "mkdir -p $(PAGER_DEST)/examples $(PAGER_DEST)/fonts $(PAGER_DEST)/images"
 	scp $(PAYLOAD_DIR)/libpagerctl.so $(PAYLOAD_DIR)/pagerctl.py \
 		$(PAYLOAD_DIR)/payload.sh \
 		root@$(PAGER_IP):$(PAGER_DEST)/
-	scp $(PAYLOAD_DIR)/examples/*.py \
+	scp $(PAYLOAD_DIR)/examples/demo $(PAYLOAD_DIR)/examples/*.py \
 		root@$(PAGER_IP):$(PAGER_DEST)/examples/ 2>/dev/null || true
 	@if [ -d "$(PAYLOAD_DIR)/fonts" ] && [ "$$(ls -A $(PAYLOAD_DIR)/fonts 2>/dev/null)" ]; then \
 		echo "Transferring fonts..."; \
 		scp $(PAYLOAD_DIR)/fonts/*.ttf $(PAYLOAD_DIR)/fonts/LICENSE.txt \
 			root@$(PAGER_IP):$(PAGER_DEST)/fonts/ 2>/dev/null || true; \
 	fi
-	ssh root@$(PAGER_IP) "chmod +x $(PAGER_DEST)/*.sh $(PAGER_DEST)/examples/*.py 2>/dev/null || true"
+	@if [ -d "$(PAYLOAD_DIR)/images" ] && [ "$$(ls -A $(PAYLOAD_DIR)/images 2>/dev/null)" ]; then \
+		echo "Transferring images..."; \
+		scp $(PAYLOAD_DIR)/images/* \
+			root@$(PAGER_IP):$(PAGER_DEST)/images/ 2>/dev/null || true; \
+	fi
+	ssh root@$(PAGER_IP) "chmod +x $(PAGER_DEST)/*.sh $(PAGER_DEST)/examples/* 2>/dev/null || true"
 	@echo ""
 	@echo "Deployed! Access via Payloads > Examples > PAGERCTL"
 	@echo ""
