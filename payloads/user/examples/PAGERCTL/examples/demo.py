@@ -46,7 +46,7 @@ def main():
         # ------------------------------------
         # 1. Display basics
         # ------------------------------------
-        print("[1/6] Display basics...")
+        print("[1/7] Display basics...")
 
         p.clear(p.rgb(0, 0, 51))
         p.draw_text_centered(20, "PAGERCTL DEMO", p.YELLOW, 2)
@@ -66,7 +66,7 @@ def main():
         # ------------------------------------
         # 2. Screen properties and colors
         # ------------------------------------
-        print("[2/6] Screen properties...")
+        print("[2/7] Screen properties...")
 
         p.clear(p.BLACK)
         p.draw_text_centered(30, f"Screen: {p.width}x{p.height}", p.WHITE, 1)
@@ -84,7 +84,7 @@ def main():
         # ------------------------------------
         # 3. LED control
         # ------------------------------------
-        print("[3/6] LED control...")
+        print("[3/7] LED control...")
 
         run_led_test = True
         while run_led_test:
@@ -148,7 +148,7 @@ def main():
         # ------------------------------------
         # 4. Audio and vibration
         # ------------------------------------
-        print("[4/6] Audio and vibration...")
+        print("[4/7] Audio and vibration...")
 
         p.clear(p.rgb(34, 0, 17))
         p.draw_text_centered(30, "Audio Demo", p.WHITE, 2)
@@ -208,7 +208,7 @@ def main():
         # ------------------------------------
         # 5. TTF Font rendering
         # ------------------------------------
-        print("[5/6] TTF Font rendering...")
+        print("[5/7] TTF Font rendering...")
 
         p.clear(p.rgb(0, 0, 32))
         p.draw_text_centered(10, "TTF Font Demo", p.YELLOW, 2)
@@ -239,9 +239,50 @@ def main():
         wait_for_green(p)
 
         # ------------------------------------
-        # 6. Button input - wait for ALL buttons
+        # 6. Image loading (JPG, PNG, BMP)
         # ------------------------------------
-        print("[6/6] Button input...")
+        print("[6/7] Image loading...")
+
+        p.clear(p.BLACK)
+        p.draw_text_centered(10, "Image Demo", p.YELLOW, 2)
+
+        TEST_IMAGE = "/root/payloads/user/examples/PAGERCTL/images/test_image.jpg"
+
+        if os.path.exists(TEST_IMAGE):
+            img_info = p.get_image_info(TEST_IMAGE)
+            if img_info:
+                img_w, img_h = img_info
+                p.draw_text_centered(35, f"Image: {img_w}x{img_h}", p.GRAY, 1)
+
+                # Calculate scaling to fit (max 400x160 to leave room for text)
+                max_w, max_h = 400, 160
+                scale_w = max_w / img_w
+                scale_h = max_h / img_h
+                scale = min(scale_w, scale_h, 1.0)  # Don't upscale
+
+                dst_w = int(img_w * scale)
+                dst_h = int(img_h * scale)
+                x = (p.width - dst_w) // 2
+                y = 50
+
+                # Load and draw scaled
+                if p.draw_image_file_scaled(x, y, dst_w, dst_h, TEST_IMAGE) == 0:
+                    p.draw_text(x, y + dst_h + 5, f"Scaled: {dst_w}x{dst_h}", p.WHITE, 1)
+                else:
+                    p.draw_text_centered(100, "Failed to load image!", p.RED, 1)
+            else:
+                p.draw_text_centered(100, "Failed to get image info!", p.RED, 1)
+        else:
+            p.draw_text_centered(80, "No test image found!", p.RED, 1)
+            p.draw_text_centered(110, "Copy test_image.jpg to:", p.GRAY, 1)
+            p.draw_text_centered(130, TEST_IMAGE, p.GRAY, 1)
+
+        wait_for_green(p)
+
+        # ------------------------------------
+        # 7. Button input - wait for ALL buttons
+        # ------------------------------------
+        print("[7/7] Button input...")
 
         # Track which buttons have been pressed
         buttons_pressed = {

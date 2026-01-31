@@ -7,6 +7,7 @@
  * - LED control
  * - Audio (buzzer) and vibration
  * - TTF font rendering
+ * - Image loading (JPG, PNG, BMP, GIF)
  *
  * Build:
  *   make demo
@@ -67,7 +68,7 @@ int main(int argc, char *argv[]) {
     /* ----------------------------------------
      * 1. Display basics
      * ---------------------------------------- */
-    printf("[1/6] Display basics...\n");
+    printf("[1/7] Display basics...\n");
 
     pager_clear(COLOR_BG);
     pager_draw_text_centered(20, "PAGERCTL C DEMO", COLOR_YELLOW, 2);
@@ -88,7 +89,7 @@ int main(int argc, char *argv[]) {
     /* ----------------------------------------
      * 2. Screen properties and colors
      * ---------------------------------------- */
-    printf("[2/6] Screen properties...\n");
+    printf("[2/7] Screen properties...\n");
 
     pager_clear(COLOR_BLACK);
     char screen_info[64];
@@ -109,7 +110,7 @@ int main(int argc, char *argv[]) {
     /* ----------------------------------------
      * 3. LED control
      * ---------------------------------------- */
-    printf("[3/6] LED control...\n");
+    printf("[3/7] LED control...\n");
 
     int run_led_test = 1;
     while (run_led_test) {
@@ -175,7 +176,7 @@ int main(int argc, char *argv[]) {
     /* ----------------------------------------
      * 4. Audio and vibration
      * ---------------------------------------- */
-    printf("[4/6] Audio and vibration...\n");
+    printf("[4/7] Audio and vibration...\n");
 
     pager_clear(COLOR_BG_RED);
     pager_draw_text_centered(30, "Audio Demo", COLOR_WHITE, 2);
@@ -236,7 +237,7 @@ int main(int argc, char *argv[]) {
     /* ----------------------------------------
      * 5. TTF Font rendering
      * ---------------------------------------- */
-    printf("[5/6] TTF Font rendering...\n");
+    printf("[5/7] TTF Font rendering...\n");
 
     pager_clear(COLOR_BG_BLUE);
     pager_draw_text_centered(10, "TTF Font Demo", COLOR_YELLOW, 2);
@@ -269,9 +270,58 @@ int main(int argc, char *argv[]) {
     wait_for_green(NULL);
 
     /* ----------------------------------------
-     * 6. Button input - wait for ALL buttons
+     * 6. Image loading (JPG, PNG, BMP)
      * ---------------------------------------- */
-    printf("[6/6] Button input...\n");
+    printf("[6/7] Image loading...\n");
+
+    pager_clear(COLOR_BLACK);
+    pager_draw_text_centered(10, "Image Demo", COLOR_YELLOW, 2);
+
+    /* Check if test image exists */
+    #define TEST_IMAGE "/root/payloads/user/examples/PAGERCTL/images/test_image.jpg"
+
+    if (file_exists(TEST_IMAGE)) {
+        int img_w, img_h;
+        if (pager_get_image_info(TEST_IMAGE, &img_w, &img_h) == 0) {
+            char info[64];
+            snprintf(info, sizeof(info), "Image: %dx%d", img_w, img_h);
+            pager_draw_text_centered(35, info, COLOR_GRAY, 1);
+
+            /* Calculate scaling to fit (max 400x180 to leave room for text) */
+            int max_w = 400;
+            int max_h = 160;
+            float scale_w = (float)max_w / img_w;
+            float scale_h = (float)max_h / img_h;
+            float scale = (scale_w < scale_h) ? scale_w : scale_h;
+            if (scale > 1.0f) scale = 1.0f;  /* Don't upscale */
+
+            int dst_w = (int)(img_w * scale);
+            int dst_h = (int)(img_h * scale);
+            int x = (width - dst_w) / 2;
+            int y = 50;
+
+            /* Load and draw scaled */
+            if (pager_draw_image_file_scaled(x, y, dst_w, dst_h, TEST_IMAGE) == 0) {
+                snprintf(info, sizeof(info), "Scaled: %dx%d", dst_w, dst_h);
+                pager_draw_text(x, y + dst_h + 5, info, COLOR_WHITE, 1);
+            } else {
+                pager_draw_text_centered(100, "Failed to load image!", COLOR_RED, 1);
+            }
+        } else {
+            pager_draw_text_centered(100, "Failed to get image info!", COLOR_RED, 1);
+        }
+    } else {
+        pager_draw_text_centered(80, "No test image found!", COLOR_RED, 1);
+        pager_draw_text_centered(110, "Copy test_image.jpg to:", COLOR_GRAY, 1);
+        pager_draw_text_centered(130, TEST_IMAGE, COLOR_GRAY, 1);
+    }
+
+    wait_for_green(NULL);
+
+    /* ----------------------------------------
+     * 7. Button input - wait for ALL buttons
+     * ---------------------------------------- */
+    printf("[7/7] Button input...\n");
 
     /* Track which buttons have been pressed */
     int btn_up = 0, btn_down = 0, btn_left = 0, btn_right = 0;

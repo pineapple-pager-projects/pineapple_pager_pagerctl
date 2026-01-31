@@ -22,6 +22,12 @@
 #define STB_TRUETYPE_IMPLEMENTATION
 #include "stb_truetype.h"
 
+/* stb_image for image loading (JPG, PNG, BMP, GIF) */
+#define STB_IMAGE_IMPLEMENTATION
+#define STBI_NO_HDR
+#define STBI_NO_LINEAR
+#include "stb_image.h"
+
 /* Framebuffer state */
 static int fb_fd = -1;
 static uint16_t *framebuffer = NULL;
@@ -1340,4 +1346,136 @@ void pager_draw_ttf_right(int y, const char *text, uint16_t color,
         int x = logical_width - width - padding;
         pager_draw_ttf(x, y, text, color, font_path, font_size);
     }
+}
+
+/*
+ * ============================================================
+ * IMAGE SUPPORT (JPG, PNG, BMP, GIF via stb_image)
+ * ============================================================
+ */
+
+/* Convert RGB888 to RGB565 */
+static inline uint16_t rgb888_to_rgb565(uint8_t r, uint8_t g, uint8_t b) {
+    return ((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3);
+}
+
+/* Load image from file and return pager_image_t structure */
+pager_image_t *pager_load_image(const char *filepath) {
+    int width, height, channels;
+
+    /* Load image - request RGB (3 channels) */
+    unsigned char *data = stbi_load(filepath, &width, &height, &channels, 3);
+    if (!data) {
+        fprintf(stderr, "Failed to load image: %s\n", filepath);
+        return NULL;
+    }
+
+    /* Allocate image structure */
+    pager_image_t *img = malloc(sizeof(pager_image_t));
+    if (!img) {
+        stbi_image_free(data);
+        return NULL;
+    }
+
+    /* Allocate RGB565 pixel buffer */
+    img->pixels = malloc(width * height * sizeof(uint16_t));
+    if (!img->pixels) {
+        free(img);
+        stbi_image_free(data);
+        return NULL;
+    }
+
+    img->width = width;
+    img->height = height;
+
+    /* Convert RGB888 to RGB565 */
+    for (int i = 0; i < width * height; i++) {
+        uint8_t r = data[i * 3 + 0];
+        uint8_t g = data[i * 3 + 1];
+        uint8_t b = data[i * 3 + 2];
+        img->pixels[i] = rgb888_to_rgb565(r, g, b);
+    }
+
+    stbi_image_free(data);
+    return img;
+}
+
+/* Free a loaded image */
+void pager_free_image(pager_image_t *img) {
+    if (img) {
+        if (img->pixels) {
+            free(img->pixels);
+        }
+        free(img);
+    }
+}
+
+/* Draw a loaded image at position */
+void pager_draw_image(int x, int y, const pager_image_t *img) {
+    if (!img || !img->pixels || !framebuffer) return;
+
+    for (int iy = 0; iy < img->height; iy++) {
+        int screen_y = y + iy;
+        if (screen_y < 0 || screen_y >= logical_height) continue;
+
+        for (int ix = 0; ix < img->width; ix++) {
+            int screen_x = x + ix;
+            if (screen_x < 0 || screen_x >= logical_width) continue;
+
+            pager_set_pixel(screen_x, screen_y, img->pixels[iy * img->width + ix]);
+        }
+    }
+}
+
+/* Draw a loaded image scaled to fit width x height */
+void pager_draw_image_scaled(int x, int y, int dst_w, int dst_h, const pager_image_t *img) {
+    if (!img || !img->pixels || !framebuffer) return;
+    if (dst_w <= 0 || dst_h <= 0) return;
+
+    /* Use nearest-neighbor scaling for speed */
+    for (int dy = 0; dy < dst_h; dy++) {
+        int screen_y = y + dy;
+        if (screen_y < 0 || screen_y >= logical_height) continue;
+
+        int src_y = (dy * img->height) / dst_h;
+
+        for (int dx = 0; dx < dst_w; dx++) {
+            int screen_x = x + dx;
+            if (screen_x < 0 || screen_x >= logical_width) continue;
+
+            int src_x = (dx * img->width) / dst_w;
+            pager_set_pixel(screen_x, screen_y, img->pixels[src_y * img->width + src_x]);
+        }
+    }
+}
+
+/* Load and draw image from file in one call (convenience function) */
+int pager_draw_image_file(int x, int y, const char *filepath) {
+    pager_image_t *img = pager_load_image(filepath);
+    if (!img) return -1;
+
+    pager_draw_image(x, y, img);
+    pager_free_image(img);
+    return 0;
+}
+
+/* Load and draw image from file, scaled to fit */
+int pager_draw_image_file_scaled(int x, int y, int dst_w, int dst_h, const char *filepath) {
+    pager_image_t *img = pager_load_image(filepath);
+    if (!img) return -1;
+
+    pager_draw_image_scaled(x, y, dst_w, dst_h, img);
+    pager_free_image(img);
+    return 0;
+}
+
+/* Get image dimensions without loading full image */
+int pager_get_image_info(const char *filepath, int *width, int *height) {
+    int w, h, channels;
+    if (stbi_info(filepath, &w, &h, &channels)) {
+        if (width) *width = w;
+        if (height) *height = h;
+        return 0;
+    }
+    return -1;
 }

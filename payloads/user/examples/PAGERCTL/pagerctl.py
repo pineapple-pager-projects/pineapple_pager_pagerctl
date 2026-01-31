@@ -17,7 +17,7 @@ Example:
 """
 
 import os
-from ctypes import *
+from ctypes import CDLL, c_int, c_uint8, c_uint16, c_uint32, c_float, c_char, c_char_p, c_void_p, POINTER, byref
 
 # Find the shared library
 _lib_paths = [
@@ -203,6 +203,22 @@ class Pager:
         # Input (blocking wait)
         _lib.pager_wait_button.argtypes = []
         _lib.pager_wait_button.restype = c_int
+
+        # Image support
+        _lib.pager_load_image.argtypes = [c_char_p]
+        _lib.pager_load_image.restype = c_void_p
+        _lib.pager_free_image.argtypes = [c_void_p]
+        _lib.pager_free_image.restype = None
+        _lib.pager_draw_image.argtypes = [c_int, c_int, c_void_p]
+        _lib.pager_draw_image.restype = None
+        _lib.pager_draw_image_scaled.argtypes = [c_int, c_int, c_int, c_int, c_void_p]
+        _lib.pager_draw_image_scaled.restype = None
+        _lib.pager_draw_image_file.argtypes = [c_int, c_int, c_char_p]
+        _lib.pager_draw_image_file.restype = c_int
+        _lib.pager_draw_image_file_scaled.argtypes = [c_int, c_int, c_int, c_int, c_char_p]
+        _lib.pager_draw_image_file_scaled.restype = c_int
+        _lib.pager_get_image_info.argtypes = [c_char_p, POINTER(c_int), POINTER(c_int)]
+        _lib.pager_get_image_info.restype = c_int
 
     # Initialization
     def init(self):
@@ -415,6 +431,44 @@ class Pager:
     def wait_button(self):
         """Wait for any button press (blocking)."""
         return _lib.pager_wait_button()
+
+    # Image support (JPG, PNG, BMP, GIF)
+    def load_image(self, filepath):
+        """Load image from file. Returns opaque handle for draw_image().
+        Call free_image() when done. Returns None on error."""
+        handle = _lib.pager_load_image(filepath.encode())
+        return handle if handle else None
+
+    def free_image(self, handle):
+        """Free a loaded image."""
+        if handle:
+            _lib.pager_free_image(handle)
+
+    def draw_image(self, x, y, handle):
+        """Draw a loaded image at position."""
+        if handle:
+            _lib.pager_draw_image(x, y, handle)
+
+    def draw_image_scaled(self, x, y, w, h, handle):
+        """Draw a loaded image scaled to fit w x h."""
+        if handle:
+            _lib.pager_draw_image_scaled(x, y, w, h, handle)
+
+    def draw_image_file(self, x, y, filepath):
+        """Load and draw image from file in one call. Returns 0 on success."""
+        return _lib.pager_draw_image_file(x, y, filepath.encode())
+
+    def draw_image_file_scaled(self, x, y, w, h, filepath):
+        """Load and draw image from file, scaled. Returns 0 on success."""
+        return _lib.pager_draw_image_file_scaled(x, y, w, h, filepath.encode())
+
+    def get_image_info(self, filepath):
+        """Get image dimensions without loading. Returns (width, height) or None."""
+        w = c_int()
+        h = c_int()
+        if _lib.pager_get_image_info(filepath.encode(), byref(w), byref(h)) == 0:
+            return (w.value, h.value)
+        return None
 
     # Context manager support
     def __enter__(self):

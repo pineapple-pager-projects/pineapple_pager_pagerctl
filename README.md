@@ -7,6 +7,7 @@ Hardware control library for the WiFi Pineapple Pager. Provides smooth, flicker-
 - **Display** - Double-buffered framebuffer rendering (480x222 RGB565)
 - **Text** - Built-in bitmap font with multiple sizes
 - **TTF Fonts** - TrueType font rendering via stb_truetype
+- **Images** - Load and draw JPG, PNG, BMP, GIF images via stb_image
 - **Input** - Button handling (D-pad, A, B, Power)
 - **LEDs** - RGB D-pad LEDs and A/B button LEDs
 - **Audio** - Buzzer control with RTTTL ringtone support
@@ -98,6 +99,35 @@ int main() {
 | `pager_draw_ttf(x, y, text, color, font, size)` | Draw TTF text |
 | `pager_draw_ttf_centered(y, text, color, font, size)` | Draw centered TTF text |
 
+### Images
+
+| Function | Description |
+|----------|-------------|
+| `pager_load_image(filepath)` | Load image file, returns handle (caller must free) |
+| `pager_free_image(handle)` | Free a loaded image |
+| `pager_draw_image(x, y, handle)` | Draw loaded image at position |
+| `pager_draw_image_scaled(x, y, w, h, handle)` | Draw loaded image scaled to w×h |
+| `pager_draw_image_file(x, y, filepath)` | Load and draw in one call |
+| `pager_draw_image_file_scaled(x, y, w, h, filepath)` | Load and draw scaled in one call |
+| `pager_get_image_info(filepath, &w, &h)` | Get image dimensions without loading |
+
+Supported formats: JPEG, PNG, BMP, GIF (first frame only)
+
+**Python example:**
+```python
+# One-shot draw (loads, draws, frees)
+p.draw_image_file_scaled(0, 0, 200, 100, "/path/to/image.jpg")
+
+# For repeated drawing, load once
+img = p.load_image("/path/to/image.png")
+p.draw_image(10, 10, img)
+p.draw_image_scaled(100, 10, 50, 50, img)
+p.free_image(img)
+
+# Get dimensions without loading
+w, h = p.get_image_info("/path/to/image.jpg")
+```
+
 ### Input
 
 | Function | Description |
@@ -157,15 +187,17 @@ pagerctl/
 │   ├── pagerctl.c          # Main library source
 │   ├── pagerctl.h          # Header file
 │   ├── stb_truetype.h      # TTF rendering
+│   ├── stb_image.h         # Image loading (JPG, PNG, BMP, GIF)
 │   └── demo.c              # C demo source
 ├── payloads/user/examples/PAGERCTL/  # Payload directory
 │   ├── libpagerctl.so      # Compiled library
 │   ├── pagerctl.py         # Python wrapper
 │   ├── payload.sh          # Pager payload entry
+│   ├── demo                # C demo binary
 │   ├── examples/
-│   │   ├── demo            # C demo binary
 │   │   └── demo.py         # Python demo
-│   └── fonts/              # TTF fonts
+│   ├── fonts/              # TTF fonts
+│   └── images/             # Test images
 └── Makefile
 ```
 

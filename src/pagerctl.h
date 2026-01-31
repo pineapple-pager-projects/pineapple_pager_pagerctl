@@ -411,4 +411,55 @@ void pager_draw_ttf_right(int y, const char *text, uint16_t color,
 /* Free cached TTF font data (optional, called automatically on cleanup) */
 void pager_ttf_cleanup(void);
 
+/*
+ * ============================================================
+ * IMAGE SUPPORT (JPG, PNG, BMP, GIF)
+ * ============================================================
+ *
+ * Supports loading and drawing images in common formats:
+ * - JPEG (.jpg, .jpeg)
+ * - PNG (.png)
+ * - BMP (.bmp)
+ * - GIF (.gif) - first frame only
+ *
+ * Images are converted to RGB565 format for the display.
+ */
+
+/* Image structure for pre-loaded images */
+typedef struct {
+    int width;
+    int height;
+    uint16_t *pixels;  /* RGB565 pixel data */
+} pager_image_t;
+
+/* Load image from file into memory. Returns NULL on error.
+ * Caller must call pager_free_image() when done.
+ */
+pager_image_t *pager_load_image(const char *filepath);
+
+/* Free a loaded image */
+void pager_free_image(pager_image_t *img);
+
+/* Draw a loaded image at position (x, y) */
+void pager_draw_image(int x, int y, const pager_image_t *img);
+
+/* Draw a loaded image scaled to fit dst_w x dst_h */
+void pager_draw_image_scaled(int x, int y, int dst_w, int dst_h, const pager_image_t *img);
+
+/* Load and draw image from file in one call.
+ * Returns 0 on success, -1 on error.
+ * Note: For repeated drawing, use pager_load_image() instead.
+ */
+int pager_draw_image_file(int x, int y, const char *filepath);
+
+/* Load and draw image from file, scaled to fit.
+ * Returns 0 on success, -1 on error.
+ */
+int pager_draw_image_file_scaled(int x, int y, int dst_w, int dst_h, const char *filepath);
+
+/* Get image dimensions without loading the full image.
+ * Returns 0 on success, -1 on error.
+ */
+int pager_get_image_info(const char *filepath, int *width, int *height);
+
 #endif /* PAGERCTL_H */
