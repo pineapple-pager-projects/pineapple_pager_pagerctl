@@ -1,0 +1,24 @@
+# macOS
+.DS_Store
+._*
+
+# Build artifacts (binaries are pre-built for convenience)
+# Uncomment to exclude binaries from git:
+# payloads/user/examples/PAGERCTL/pagerctl
+# payloads/user/examples/PAGERCTL/libpager.so
+
+# Native test builds
+*_native
+*.o
+
+# Editor files
+*.swp
+*.swo
+*~
+.vscode/
+.idea/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
