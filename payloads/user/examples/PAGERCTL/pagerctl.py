@@ -28,10 +28,9 @@ class PagerInput(Structure):
         ("released", c_uint8),  # Just released this frame (bitmask)
     ]
 
-# Find the shared library
+# Find the shared library (portable - looks relative to this file first)
 _lib_paths = [
-    "/root/payloads/user/examples/PAGERCTL/libpagerctl.so",
-    os.path.join(os.path.dirname(__file__), "libpagerctl.so"),
+    os.path.join(os.path.dirname(os.path.abspath(__file__)), "libpagerctl.so"),
     "./libpagerctl.so",
 ]
 
