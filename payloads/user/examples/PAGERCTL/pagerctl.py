@@ -17,7 +17,16 @@ Example:
 """
 
 import os
-from ctypes import CDLL, c_int, c_uint8, c_uint16, c_uint32, c_float, c_char, c_char_p, c_void_p, POINTER, byref
+from ctypes import CDLL, Structure, c_int, c_uint8, c_uint16, c_uint32, c_float, c_char, c_char_p, c_void_p, POINTER, byref
+
+
+class PagerInput(Structure):
+    """Input state structure matching pager_input_t in C."""
+    _fields_ = [
+        ("current", c_uint8),   # Currently held buttons (bitmask)
+        ("pressed", c_uint8),   # Just pressed this frame (bitmask)
+        ("released", c_uint8),  # Just released this frame (bitmask)
+    ]
 
 # Find the shared library
 _lib_paths = [
@@ -200,9 +209,11 @@ class Pager:
         _lib.pager_seed_random.argtypes = [c_uint32]
         _lib.pager_seed_random.restype = None
 
-        # Input (blocking wait)
+        # Input
         _lib.pager_wait_button.argtypes = []
         _lib.pager_wait_button.restype = c_int
+        _lib.pager_poll_input.argtypes = [POINTER(PagerInput)]
+        _lib.pager_poll_input.restype = None
 
         # Image support
         _lib.pager_load_image.argtypes = [c_char_p]
@@ -426,11 +437,30 @@ class Pager:
         """Seed the random number generator."""
         _lib.pager_seed_random(seed)
 
-    # Input (simple blocking read for now)
-    # Full input handling requires the pager_input_t struct
+    # Input
     def wait_button(self):
         """Wait for any button press (blocking)."""
         return _lib.pager_wait_button()
+
+    def poll_input(self):
+        """Poll input state (non-blocking).
+
+        Returns:
+            tuple: (current, pressed, released) where each is a button bitmask.
+                - current: buttons currently held down
+                - pressed: buttons just pressed this frame
+                - released: buttons just released this frame
+
+        Example:
+            current, pressed, released = p.poll_input()
+            if pressed & Pager.BTN_A:
+                print("A button just pressed!")
+            if current & Pager.BTN_UP:
+                print("UP is being held")
+        """
+        state = PagerInput()
+        _lib.pager_poll_input(byref(state))
+        return state.current, state.pressed, state.released
 
     # Image support (JPG, PNG, BMP, GIF)
     def load_image(self, filepath):
@@ -485,7 +515,7 @@ if __name__ == "__main__":
     with Pager() as p:
         p.set_rotation(270)
         p.clear(p.rgb(0, 0, 32))
-        p.draw_text_centered(100, "libpager.so", p.WHITE, 2)
+        p.draw_text_centered(100, "libpagerctl.so", p.WHITE, 2)
         p.draw_text_centered(130, "Python Demo", p.CYAN, 1)
         p.flip()
         p.beep(800, 100)

@@ -137,6 +137,23 @@ w, h = p.get_image_info("/path/to/image.jpg")
 
 Button constants: `BTN_UP`, `BTN_DOWN`, `BTN_LEFT`, `BTN_RIGHT`, `BTN_A`, `BTN_B`, `BTN_POWER`
 
+**Python example:**
+```python
+# Blocking wait
+button = p.wait_button()
+if button & Pager.BTN_A:
+    print("A pressed")
+
+# Non-blocking poll (for game loops)
+current, pressed, released = p.poll_input()
+if pressed & Pager.BTN_A:      # Just pressed this frame
+    p.beep(800, 50)
+if current & Pager.BTN_UP:      # Currently held down
+    player_y -= 1
+if released & Pager.BTN_B:      # Just released
+    print("B released")
+```
+
 ### LEDs
 
 | Function | Description |
