@@ -220,9 +220,31 @@ pagerctl/
 
 ## Creating Your Own Payload
 
+### Using pagerctl in Your Project
+
+Copy both files to your project (keep them together in the same directory):
+- `pagerctl.py` - Python wrapper
+- `libpagerctl.so` - Compiled library
+
+These files are portable - `pagerctl.py` automatically finds `libpagerctl.so` in the same directory.
+
+```python
+# In your script, import from where you placed the files
+import sys
+sys.path.insert(0, "/path/to/your/lib")
+from pagerctl import Pager
+
+with Pager() as p:
+    p.set_rotation(270)
+    p.draw_text(10, 10, "My App!", p.WHITE, 2)
+    p.flip()
+```
+
+### As a Pager Payload
+
 1. Copy `payload.sh` and `examples/demo.py` to your payload directory
-2. Update paths in `payload.sh` to point to your payload location
-3. Modify `demo.py` or write your own script using the `pagerctl` module
+2. Copy `pagerctl.py` and `libpagerctl.so` to your payload's lib folder
+3. Update paths in `payload.sh` to point to your payload location
 4. Deploy and run via Payloads menu
 
 ## Requirements
