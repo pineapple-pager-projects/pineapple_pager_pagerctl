@@ -28,6 +28,21 @@ class PagerInput(Structure):
         ("released", c_uint8),  # Just released this frame (bitmask)
     ]
 
+
+class PagerInputEvent(Structure):
+    """Input event structure for thread-safe event queue."""
+    _fields_ = [
+        ("button", c_uint8),     # Which button (single bit from PBTN_* bitmask)
+        ("type", c_int),         # Event type (PAGER_EVENT_*)
+        ("timestamp", c_uint32), # When event occurred (ms since init)
+    ]
+
+
+# Event types for PagerInputEvent
+PAGER_EVENT_NONE = 0
+PAGER_EVENT_PRESS = 1
+PAGER_EVENT_RELEASE = 2
+
 # Find the shared library (portable - looks relative to this file first)
 _lib_paths = [
     os.path.join(os.path.dirname(os.path.abspath(__file__)), "libpagerctl.so"),
@@ -79,6 +94,11 @@ class Pager:
     BTN_A = 0x10     # Green
     BTN_B = 0x20     # Red
     BTN_POWER = 0x40 # Power button
+
+    # Input event types (for get_input_event)
+    EVENT_NONE = 0
+    EVENT_PRESS = 1
+    EVENT_RELEASE = 2
 
     # RTTTL playback modes
     RTTTL_SOUND_ONLY = 0     # Sound only (default)
@@ -213,6 +233,16 @@ class Pager:
         _lib.pager_wait_button.restype = c_int
         _lib.pager_poll_input.argtypes = [POINTER(PagerInput)]
         _lib.pager_poll_input.restype = None
+
+        # Thread-safe input event queue
+        _lib.pager_get_input_event.argtypes = [POINTER(PagerInputEvent)]
+        _lib.pager_get_input_event.restype = c_int
+        _lib.pager_has_input_events.argtypes = []
+        _lib.pager_has_input_events.restype = c_int
+        _lib.pager_peek_buttons.argtypes = []
+        _lib.pager_peek_buttons.restype = c_uint8
+        _lib.pager_clear_input_events.argtypes = []
+        _lib.pager_clear_input_events.restype = None
 
         # Image support
         _lib.pager_load_image.argtypes = [c_char_p]
@@ -460,6 +490,62 @@ class Pager:
         state = PagerInput()
         _lib.pager_poll_input(byref(state))
         return state.current, state.pressed, state.released
+
+    # Thread-safe input event queue methods
+    def get_input_event(self):
+        """Get next input event from thread-safe queue.
+
+        This is the preferred method for multi-threaded applications.
+        Each event is only returned once, regardless of which thread reads it.
+
+        Returns:
+            tuple: (button, event_type, timestamp) or None if queue is empty.
+                - button: which button (single bit from BTN_* constants)
+                - event_type: PAGER_EVENT_PRESS (1) or PAGER_EVENT_RELEASE (2)
+                - timestamp: when event occurred (ms since init)
+
+        Example:
+            event = pager.get_input_event()
+            if event:
+                button, event_type, timestamp = event
+                if button == Pager.BTN_B and event_type == PAGER_EVENT_PRESS:
+                    show_pause_menu()
+        """
+        event = PagerInputEvent()
+        if _lib.pager_get_input_event(byref(event)):
+            return (event.button, event.type, event.timestamp)
+        return None
+
+    def has_input_events(self):
+        """Check if there are pending input events in the queue.
+
+        Returns:
+            bool: True if events are waiting, False otherwise.
+        """
+        return bool(_lib.pager_has_input_events())
+
+    def peek_buttons(self):
+        """Get current button state without consuming events.
+
+        Thread-safe way to check which buttons are currently held.
+        Does not affect the event queue.
+
+        Returns:
+            int: Bitmask of currently held buttons.
+
+        Example:
+            if pager.peek_buttons() & Pager.BTN_UP:
+                print("UP is being held")
+        """
+        return _lib.pager_peek_buttons()
+
+    def clear_input_events(self):
+        """Clear all pending input events from the queue.
+
+        Use this when transitioning between screens or game states
+        to prevent stale events from triggering actions.
+        """
+        _lib.pager_clear_input_events()
 
     # Image support (JPG, PNG, BMP, GIF)
     def load_image(self, filepath):

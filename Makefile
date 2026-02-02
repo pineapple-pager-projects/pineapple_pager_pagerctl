@@ -11,7 +11,7 @@ PAYLOAD_DIR = payloads/user/examples/PAGERCTL
 
 # Compiler flags
 CFLAGS = -Wall -O2
-LDFLAGS = -lm
+LDFLAGS = -lm -lpthread
 SO_FLAGS = -shared -fPIC
 
 # Target library
@@ -46,7 +46,7 @@ remote-build:
 	ssh root@brainphreak 'docker run --rm -v /tmp/pagerctl_build:/src -w /src openwrt/sdk:mipsel_24kc-22.03.5 bash -c " \
 		export PATH=/builder/staging_dir/toolchain-mipsel_24kc_gcc-11.2.0_musl/bin:\$$PATH && \
 		export STAGING_DIR=/builder/staging_dir && \
-		mipsel-openwrt-linux-musl-gcc -Wall -O2 -shared -fPIC -o libpagerctl.so pagerctl.c -lm && \
+		mipsel-openwrt-linux-musl-gcc -Wall -O2 -shared -fPIC -o libpagerctl.so pagerctl.c -lm -lpthread && \
 		ls -la libpagerctl.so"'
 	scp root@brainphreak:/tmp/pagerctl_build/libpagerctl.so $(PAYLOAD_DIR)/
 	@echo "Build complete! Library: $(PAYLOAD_DIR)/libpagerctl.so"

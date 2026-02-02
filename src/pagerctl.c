@@ -17,6 +17,7 @@
 #include <sys/wait.h>
 #include <linux/fb.h>
 #include <linux/input.h>
+#include <pthread.h>
 
 /* stb_truetype for TTF font support */
 #define STB_TRUETYPE_IMPLEMENTATION
@@ -36,6 +37,14 @@ static struct timeval start_time;
 /* Input state */
 static int input_fd = -1;
 static uint8_t prev_buttons = 0;
+static uint8_t current_buttons = 0;  /* Current button state (thread-safe read) */
+
+/* Input event queue for thread-safe event handling */
+#define INPUT_QUEUE_SIZE 32
+static pager_input_event_t event_queue[INPUT_QUEUE_SIZE];
+static volatile int queue_head = 0;  /* Write position */
+static volatile int queue_tail = 0;  /* Read position */
+static pthread_mutex_t input_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 /* Random state */
 static uint32_t rand_state = 1;
@@ -594,6 +603,21 @@ int pager_draw_number(int x, int y, int num, uint16_t color, font_size_t size) {
 #define KEY_PAGER_B      304  /* BTN_SOUTH (Red/B) - swapped */
 #define KEY_PAGER_POWER  116  /* KEY_POWER */
 
+/* Queue an input event (internal, called with mutex held) */
+static void queue_input_event(uint8_t button, pager_event_type_t type) {
+    int next_head = (queue_head + 1) % INPUT_QUEUE_SIZE;
+
+    /* If queue is full, drop oldest event */
+    if (next_head == queue_tail) {
+        queue_tail = (queue_tail + 1) % INPUT_QUEUE_SIZE;
+    }
+
+    event_queue[queue_head].button = button;
+    event_queue[queue_head].type = type;
+    event_queue[queue_head].timestamp = pager_get_ticks();
+    queue_head = next_head;
+}
+
 void pager_poll_input(pager_input_t *input) {
     struct input_event ev;
     uint8_t new_buttons = prev_buttons;
@@ -604,6 +628,8 @@ void pager_poll_input(pager_input_t *input) {
         input->released = 0;
         return;
     }
+
+    pthread_mutex_lock(&input_mutex);
 
     /* Read all pending events */
     while (read(input_fd, &ev, sizeof(ev)) == sizeof(ev)) {
@@ -623,8 +649,10 @@ void pager_poll_input(pager_input_t *input) {
 
         if (ev.value == 1) {
             new_buttons |= btn;  /* Press */
+            queue_input_event(btn, PAGER_EVENT_PRESS);
         } else if (ev.value == 0) {
             new_buttons &= ~btn; /* Release */
+            queue_input_event(btn, PAGER_EVENT_RELEASE);
         }
     }
 
@@ -633,6 +661,102 @@ void pager_poll_input(pager_input_t *input) {
     input->released = ~new_buttons & prev_buttons;
 
     prev_buttons = new_buttons;
+    current_buttons = new_buttons;  /* Update thread-safe state */
+
+    pthread_mutex_unlock(&input_mutex);
+}
+
+/*
+ * Thread-safe input event queue functions
+ */
+
+int pager_get_input_event(pager_input_event_t *event) {
+    pthread_mutex_lock(&input_mutex);
+
+    /* First, read any new events from the device */
+    struct input_event ev;
+    while (input_fd >= 0 && read(input_fd, &ev, sizeof(ev)) == sizeof(ev)) {
+        if (ev.type != EV_KEY) continue;
+
+        uint8_t btn = 0;
+        switch (ev.code) {
+            case KEY_PAGER_UP:    btn = PBTN_UP;    break;
+            case KEY_PAGER_DOWN:  btn = PBTN_DOWN;  break;
+            case KEY_PAGER_LEFT:  btn = PBTN_LEFT;  break;
+            case KEY_PAGER_RIGHT: btn = PBTN_RIGHT; break;
+            case KEY_PAGER_A:     btn = PBTN_A;     break;
+            case KEY_PAGER_B:     btn = PBTN_B;     break;
+            case KEY_PAGER_POWER: btn = PBTN_POWER; break;
+            default: continue;
+        }
+
+        if (ev.value == 1) {
+            current_buttons |= btn;
+            queue_input_event(btn, PAGER_EVENT_PRESS);
+        } else if (ev.value == 0) {
+            current_buttons &= ~btn;
+            queue_input_event(btn, PAGER_EVENT_RELEASE);
+        }
+    }
+
+    /* Check if queue has events */
+    if (queue_head == queue_tail) {
+        pthread_mutex_unlock(&input_mutex);
+        return 0;  /* No events */
+    }
+
+    /* Get event from queue */
+    *event = event_queue[queue_tail];
+    queue_tail = (queue_tail + 1) % INPUT_QUEUE_SIZE;
+
+    pthread_mutex_unlock(&input_mutex);
+    return 1;  /* Event retrieved */
+}
+
+int pager_has_input_events(void) {
+    pthread_mutex_lock(&input_mutex);
+
+    /* First, read any new events from the device */
+    struct input_event ev;
+    while (input_fd >= 0 && read(input_fd, &ev, sizeof(ev)) == sizeof(ev)) {
+        if (ev.type != EV_KEY) continue;
+
+        uint8_t btn = 0;
+        switch (ev.code) {
+            case KEY_PAGER_UP:    btn = PBTN_UP;    break;
+            case KEY_PAGER_DOWN:  btn = PBTN_DOWN;  break;
+            case KEY_PAGER_LEFT:  btn = PBTN_LEFT;  break;
+            case KEY_PAGER_RIGHT: btn = PBTN_RIGHT; break;
+            case KEY_PAGER_A:     btn = PBTN_A;     break;
+            case KEY_PAGER_B:     btn = PBTN_B;     break;
+            case KEY_PAGER_POWER: btn = PBTN_POWER; break;
+            default: continue;
+        }
+
+        if (ev.value == 1) {
+            current_buttons |= btn;
+            queue_input_event(btn, PAGER_EVENT_PRESS);
+        } else if (ev.value == 0) {
+            current_buttons &= ~btn;
+            queue_input_event(btn, PAGER_EVENT_RELEASE);
+        }
+    }
+
+    int has_events = (queue_head != queue_tail);
+    pthread_mutex_unlock(&input_mutex);
+    return has_events;
+}
+
+uint8_t pager_peek_buttons(void) {
+    /* Atomic read of current button state - no mutex needed for single byte */
+    return current_buttons;
+}
+
+void pager_clear_input_events(void) {
+    pthread_mutex_lock(&input_mutex);
+    queue_head = 0;
+    queue_tail = 0;
+    pthread_mutex_unlock(&input_mutex);
 }
 
 pager_button_t pager_wait_button(void) {

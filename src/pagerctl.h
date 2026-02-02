@@ -96,6 +96,20 @@ typedef struct {
     uint8_t released;    /* Just released this frame (bitmask) */
 } pager_input_t;
 
+/* Input event types */
+typedef enum {
+    PAGER_EVENT_NONE = 0,
+    PAGER_EVENT_PRESS = 1,
+    PAGER_EVENT_RELEASE = 2,
+} pager_event_type_t;
+
+/* Input event structure (for event queue) */
+typedef struct {
+    uint8_t button;              /* Which button (PBTN_* bitmask, single bit) */
+    pager_event_type_t type;     /* PRESS or RELEASE */
+    uint32_t timestamp;          /* When event occurred (ms) */
+} pager_input_event_t;
+
 /* Font size options */
 typedef enum {
     FONT_SMALL  = 1,    /* 5x7 pixels */
@@ -223,6 +237,37 @@ void pager_poll_input(pager_input_t *input);
 
 /* Wait for any button press (blocking) */
 pager_button_t pager_wait_button(void);
+
+/*
+ * Thread-safe input event queue
+ *
+ * For multi-threaded applications, use these functions instead of poll_input().
+ * Events are queued and each event is only consumed once, regardless of which
+ * thread reads it. This solves the problem of missed button presses when
+ * multiple threads poll for input.
+ */
+
+/* Get the next input event from the queue.
+ * Returns 1 if an event was retrieved, 0 if queue is empty.
+ * Thread-safe: multiple threads can call this safely.
+ */
+int pager_get_input_event(pager_input_event_t *event);
+
+/* Check if there are any pending input events.
+ * Returns 1 if events are available, 0 if queue is empty.
+ */
+int pager_has_input_events(void);
+
+/* Get current button state without consuming edge events.
+ * Returns bitmask of currently held buttons.
+ * Thread-safe: can be called from any thread.
+ */
+uint8_t pager_peek_buttons(void);
+
+/* Clear all pending input events from the queue.
+ * Useful when transitioning between app states (e.g., entering a menu).
+ */
+void pager_clear_input_events(void);
 
 /*
  * Utility functions

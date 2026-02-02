@@ -8,7 +8,7 @@ Hardware control library for the WiFi Pineapple Pager. Provides smooth, flicker-
 - **Text** - Built-in bitmap font with multiple sizes
 - **TTF Fonts** - TrueType font rendering via stb_truetype
 - **Images** - Load and draw JPG, PNG, BMP, GIF images via stb_image
-- **Input** - Button handling (D-pad, A, B, Power)
+- **Input** - Button handling (D-pad, A, B, Power) with thread-safe event queue
 - **LEDs** - RGB D-pad LEDs and A/B button LEDs
 - **Audio** - Buzzer control with RTTTL ringtone support
 - **Vibration** - Haptic feedback
@@ -134,10 +134,16 @@ w, h = p.get_image_info("/path/to/image.jpg")
 |----------|-------------|
 | `pager_wait_button()` | Wait for button press (blocking) |
 | `pager_poll_input(input)` | Poll input state (non-blocking) |
+| `pager_get_input_event(event)` | Get next event from thread-safe queue |
+| `pager_has_input_events()` | Check if events are pending in queue |
+| `pager_peek_buttons()` | Get current button state without consuming events |
+| `pager_clear_input_events()` | Clear all pending events from queue |
 
 Button constants: `BTN_UP`, `BTN_DOWN`, `BTN_LEFT`, `BTN_RIGHT`, `BTN_A`, `BTN_B`, `BTN_POWER`
 
-**Python example:**
+Event types: `EVENT_NONE` (0), `EVENT_PRESS` (1), `EVENT_RELEASE` (2)
+
+**Python example - Single-threaded (games):**
 ```python
 # Blocking wait
 button = p.wait_button()
@@ -152,6 +158,28 @@ if current & Pager.BTN_UP:      # Currently held down
     player_y -= 1
 if released & Pager.BTN_B:      # Just released
     print("B released")
+```
+
+**Python example - Multi-threaded (background button monitoring):**
+```python
+# Thread-safe event queue for apps with multiple threads
+# Each event is only consumed once, preventing race conditions
+
+def button_thread(pager):
+    while running:
+        pager.poll_input()  # Read hardware, populate queue
+        event = pager.get_input_event()
+        if event:
+            button, event_type, timestamp = event
+            if button == Pager.BTN_B and event_type == Pager.EVENT_PRESS:
+                show_menu()
+
+# Check button state without consuming events
+if pager.peek_buttons() & Pager.BTN_A:
+    print("A is currently held")
+
+# Clear queue when transitioning between screens
+pager.clear_input_events()
 ```
 
 ### LEDs
@@ -288,7 +316,7 @@ export STAGING_DIR=$PWD/openwrt-sdk-22.03.5-ramips-mt76x8_gcc-11.2.0_musl.Linux-
 
 Then compile directly:
 ```bash
-mipsel-openwrt-linux-musl-gcc -Wall -O2 -shared -fPIC -o libpagerctl.so src/pagerctl.c -lm
+mipsel-openwrt-linux-musl-gcc -Wall -O2 -shared -fPIC -o libpagerctl.so src/pagerctl.c -lm -lpthread
 mipsel-openwrt-linux-musl-gcc -Wall -O2 -I src -o demo src/demo.c -L. -l:libpagerctl.so -lm
 ```
 
