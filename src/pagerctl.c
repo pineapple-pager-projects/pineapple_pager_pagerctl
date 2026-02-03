@@ -1291,6 +1291,125 @@ void pager_play_rtttl_sync(const char *rtttl, int with_vibration) {
 
 /*
  * ============================================================
+ * BACKLIGHT / BRIGHTNESS CONTROL
+ * ============================================================
+ */
+
+/* Cached backlight path (found once on first use) */
+static char backlight_path[256] = {0};
+static int backlight_path_checked = 0;
+static int max_brightness_cached = -1;
+
+/* Find the backlight sysfs path */
+static const char *find_backlight_path(void) {
+    if (backlight_path_checked) {
+        return backlight_path[0] ? backlight_path : NULL;
+    }
+    backlight_path_checked = 1;
+
+    /* Common backlight paths on embedded Linux */
+    const char *candidates[] = {
+        "/sys/class/backlight/backlight",
+        "/sys/class/backlight/lcd-backlight",
+        "/sys/class/backlight/panel0-backlight",
+        NULL
+    };
+
+    for (int i = 0; candidates[i]; i++) {
+        char test_path[300];
+        snprintf(test_path, sizeof(test_path), "%s/brightness", candidates[i]);
+        if (access(test_path, W_OK) == 0) {
+            strncpy(backlight_path, candidates[i], sizeof(backlight_path) - 1);
+            return backlight_path;
+        }
+    }
+
+    /* Try glob pattern as fallback */
+    FILE *fp = popen("ls -d /sys/class/backlight/*/brightness 2>/dev/null | head -1", "r");
+    if (fp) {
+        char buf[300];
+        if (fgets(buf, sizeof(buf), fp)) {
+            /* Remove trailing newline and /brightness */
+            char *nl = strchr(buf, '\n');
+            if (nl) *nl = '\0';
+            char *last_slash = strrchr(buf, '/');
+            if (last_slash) *last_slash = '\0';
+            strncpy(backlight_path, buf, sizeof(backlight_path) - 1);
+        }
+        pclose(fp);
+    }
+
+    return backlight_path[0] ? backlight_path : NULL;
+}
+
+int pager_get_max_brightness(void) {
+    if (max_brightness_cached >= 0) {
+        return max_brightness_cached;
+    }
+
+    const char *path = find_backlight_path();
+    if (!path) return -1;
+
+    char filepath[300];
+    snprintf(filepath, sizeof(filepath), "%s/max_brightness", path);
+
+    FILE *f = fopen(filepath, "r");
+    if (!f) return -1;
+
+    int value = -1;
+    if (fscanf(f, "%d", &value) == 1) {
+        max_brightness_cached = value;
+    }
+    fclose(f);
+    return max_brightness_cached;
+}
+
+int pager_get_brightness(void) {
+    const char *path = find_backlight_path();
+    if (!path) return -1;
+
+    char filepath[300];
+    snprintf(filepath, sizeof(filepath), "%s/brightness", path);
+
+    FILE *f = fopen(filepath, "r");
+    if (!f) return -1;
+
+    int value = -1;
+    fscanf(f, "%d", &value);
+    fclose(f);
+
+    int max_val = pager_get_max_brightness();
+    if (max_val <= 0 || value < 0) return -1;
+
+    return (value * 100) / max_val;
+}
+
+int pager_set_brightness(int percent) {
+    const char *path = find_backlight_path();
+    if (!path) return -1;
+
+    int max_val = pager_get_max_brightness();
+    if (max_val <= 0) return -1;
+
+    /* Clamp percent to 0-100 */
+    if (percent < 0) percent = 0;
+    if (percent > 100) percent = 100;
+
+    int value = (max_val * percent) / 100;
+
+    char filepath[300];
+    snprintf(filepath, sizeof(filepath), "%s/brightness", path);
+
+    FILE *f = fopen(filepath, "w");
+    if (!f) return -1;
+
+    fprintf(f, "%d", value);
+    fclose(f);
+    return 0;
+}
+
+/*
+ * ============================================================
  * TTF FONT SUPPORT
  * ============================================================
  */

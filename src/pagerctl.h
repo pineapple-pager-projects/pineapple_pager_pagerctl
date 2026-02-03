@@ -416,7 +416,28 @@ void pager_led_all_off(void);
 
 /*
  * ============================================================
- * AUDIO EXTENSIONS  
+ * BACKLIGHT / BRIGHTNESS CONTROL
+ * ============================================================
+ */
+
+/* Set screen brightness as percentage (0-100).
+ * Returns 0 on success, -1 if backlight control not available.
+ */
+int pager_set_brightness(int percent);
+
+/* Get current screen brightness as percentage (0-100).
+ * Returns -1 if backlight control not available.
+ */
+int pager_get_brightness(void);
+
+/* Get maximum brightness value from hardware.
+ * Returns -1 if backlight control not available.
+ */
+int pager_get_max_brightness(void);
+
+/*
+ * ============================================================
+ * AUDIO EXTENSIONS
  * ============================================================
  */
 

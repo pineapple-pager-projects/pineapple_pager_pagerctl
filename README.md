@@ -12,6 +12,7 @@ Hardware control library for the WiFi Pineapple Pager. Provides smooth, flicker-
 - **LEDs** - RGB D-pad LEDs and A/B button LEDs
 - **Audio** - Buzzer control with RTTTL ringtone support
 - **Vibration** - Haptic feedback
+- **Brightness** - Screen backlight control via sysfs
 
 ## Quick Start
 
@@ -213,6 +214,31 @@ Note: A/B button LED sysfs names are swapped - "b-button-led" controls green/A, 
 |----------|-------------|
 | `pager_vibrate(duration_ms)` | Vibrate for duration |
 | `pager_vibrate_pattern(pattern)` | Play pattern "on,off,on,off,..." |
+
+### Brightness
+
+| Function | Description |
+|----------|-------------|
+| `pager_set_brightness(percent)` | Set screen brightness (0-100%), returns 0 on success |
+| `pager_get_brightness()` | Get current brightness as percentage (0-100) |
+| `pager_get_max_brightness()` | Get hardware max brightness value |
+
+**Python example:**
+```python
+# Set brightness to 50%
+p.set_brightness(50)
+
+# Get current brightness
+current = p.get_brightness()
+print(f"Brightness: {current}%")
+
+# Dim the screen gradually
+for level in range(100, 20, -10):
+    p.set_brightness(level)
+    p.delay(100)
+```
+
+Note: Returns -1 if backlight control is not available on the device.
 
 ## Colors
 
