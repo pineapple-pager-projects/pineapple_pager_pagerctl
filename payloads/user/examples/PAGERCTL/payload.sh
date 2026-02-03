@@ -9,9 +9,11 @@ PAYLOAD_DIR="/root/payloads/user/examples/PAGERCTL"
 
 #
 # Setup paths for Python and shared library
+# MMC paths needed when python3 installed with opkg -d mmc
 #
+export PATH="/mmc/usr/bin:$PATH"
 export PYTHONPATH="$PAYLOAD_DIR:$PYTHONPATH"
-export LD_LIBRARY_PATH="$PAYLOAD_DIR:$LD_LIBRARY_PATH"
+export LD_LIBRARY_PATH="/mmc/usr/lib:$PAYLOAD_DIR:$LD_LIBRARY_PATH"
 
 #
 # Check for Python3 + ctypes (REQUIRED)
@@ -52,8 +54,8 @@ check_python() {
                     LOG "Updating package lists..."
                     opkg update 2>&1 | while IFS= read -r line; do LOG "  $line"; done
                     LOG ""
-                    LOG "Installing Python3 + ctypes..."
-                    opkg install python3 python3-ctypes 2>&1 | while IFS= read -r line; do LOG "  $line"; done
+                    LOG "Installing Python3 + ctypes to MMC..."
+                    opkg -d mmc install python3 python3-ctypes 2>&1 | while IFS= read -r line; do LOG "  $line"; done
                     LOG ""
                     if command -v python3 >/dev/null 2>&1 && python3 -c "import ctypes" 2>/dev/null; then
                         LOG "green" "Python3 installed successfully!"
