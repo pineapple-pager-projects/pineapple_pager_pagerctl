@@ -2,9 +2,9 @@
 .DS_Store
 ._*
 
-# Build artifacts (compile with 'make')
-payloads/user/examples/PAGERCTL/libpagerctl.so
-payloads/user/examples/PAGERCTL/examples/demo
+# Build artifacts
+# Note: Binaries ARE included in this repo for convenience
+# For the Hak5 PR version without binaries, see: https://github.com/hak5/wifipineapplepager-payloads
 
 # Native test builds
 *_native
