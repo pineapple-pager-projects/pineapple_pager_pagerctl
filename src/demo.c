@@ -6,6 +6,7 @@
  * - Button input (including POWER button)
  * - LED control
  * - Audio (buzzer) and vibration
+ * - Brightness control
  * - TTF font rendering
  * - Image loading (JPG, PNG, BMP, GIF)
  *
@@ -20,6 +21,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <sys/time.h>
 #include "pagerctl.h"
 
 /* Font paths */
@@ -33,6 +35,28 @@
 #define COLOR_BG_GREEN RGB565(0, 17, 0)
 #define COLOR_BG_RED   RGB565(34, 0, 17)
 #define COLOR_BG_BLUE  RGB565(0, 0, 32)
+
+/* Get current time in milliseconds */
+static long get_time_ms(void) {
+    struct timeval tv;
+    gettimeofday(&tv, NULL);
+    return tv.tv_sec * 1000 + tv.tv_usec / 1000;
+}
+
+/* Skippable delay - returns 1 if GREEN pressed, 0 otherwise */
+static int skippable_delay(int ms) {
+    long start = get_time_ms();
+    pager_input_t input;
+
+    while (get_time_ms() - start < ms) {
+        pager_poll_input(&input);
+        if (input.pressed & BTN_A) {
+            return 1;
+        }
+        usleep(50000);  /* 50ms */
+    }
+    return 0;
+}
 
 /* Wait for green (A) button */
 static void wait_for_green(const char *message) {
@@ -68,7 +92,7 @@ int main(int argc, char *argv[]) {
     /* ----------------------------------------
      * 1. Display basics
      * ---------------------------------------- */
-    printf("[1/7] Display basics...\n");
+    printf("[1/8] Display basics...\n");
 
     pager_clear(COLOR_BG);
     pager_draw_text_centered(20, "PAGERCTL C DEMO", COLOR_YELLOW, 2);
@@ -89,7 +113,7 @@ int main(int argc, char *argv[]) {
     /* ----------------------------------------
      * 2. Screen properties and colors
      * ---------------------------------------- */
-    printf("[2/7] Screen properties...\n");
+    printf("[2/8] Screen properties...\n");
 
     pager_clear(COLOR_BLACK);
     char screen_info[64];
@@ -110,65 +134,83 @@ int main(int argc, char *argv[]) {
     /* ----------------------------------------
      * 3. LED control
      * ---------------------------------------- */
-    printf("[3/7] LED control...\n");
+    printf("[3/8] LED control...\n");
 
     int run_led_test = 1;
     while (run_led_test) {
         pager_clear(COLOR_BG_GREEN);
         pager_draw_text_centered(30, "LED Demo", COLOR_WHITE, 2);
         pager_draw_text_centered(70, "Watch D-pad + A/B buttons!", COLOR_GRAY, 1);
-        pager_draw_text(100, 200, "GREEN=continue", COLOR_GREEN, 1);
-        pager_draw_text(280, 200, "RED=repeat", COLOR_RED, 1);
+        pager_draw_text(100, 200, "GREEN=skip/continue", COLOR_GREEN, 1);
+        pager_draw_text(300, 200, "RED=repeat", COLOR_RED, 1);
         pager_flip();
+
+        int skipped = 0;
 
         /* Cycle through colors on D-pad LEDs */
         uint32_t led_colors[] = {0xFF0000, 0x00FF00, 0x0000FF, 0xFFFF00, 0xFF00FF, 0x00FFFF};
         const char *dpad_leds[] = {"up", "right", "down", "left"};
 
-        for (int c = 0; c < 6; c++) {
+        for (int c = 0; c < 6 && !skipped; c++) {
             for (int l = 0; l < 4; l++) {
                 pager_led_dpad(dpad_leds[l], led_colors[c]);
             }
-            usleep(800000);  /* 0.8 seconds */
+            if (skippable_delay(800)) {
+                skipped = 1;
+            }
         }
 
-        pager_led_all_off();
-        usleep(300000);
+        if (!skipped) {
+            pager_led_all_off();
+            if (skippable_delay(300)) {
+                skipped = 1;
+            }
+        }
 
         /* Test A button LED (green) - sysfs swapped */
-        pager_fill_rect(0, 60, width, 30, COLOR_BG_GREEN);
-        pager_draw_text_centered(70, "A button LED (Green)", COLOR_GREEN, 1);
-        pager_flip();
-        for (int i = 0; i < 3; i++) {
-            pager_led_set("b-button-led", 255);
-            usleep(500000);
-            pager_led_set("b-button-led", 0);
-            usleep(300000);
+        if (!skipped) {
+            pager_fill_rect(0, 60, width, 30, COLOR_BG_GREEN);
+            pager_draw_text_centered(70, "A button LED (Green)", COLOR_GREEN, 1);
+            pager_flip();
+            for (int i = 0; i < 3 && !skipped; i++) {
+                pager_led_set("b-button-led", 255);
+                if (skippable_delay(500)) { skipped = 1; break; }
+                pager_led_set("b-button-led", 0);
+                if (skippable_delay(300)) { skipped = 1; break; }
+            }
         }
 
         /* Test B button LED (red) - sysfs swapped */
-        pager_fill_rect(0, 60, width, 30, COLOR_BG_GREEN);
-        pager_draw_text_centered(70, "B button LED (Red)", COLOR_RED, 1);
-        pager_flip();
-        for (int i = 0; i < 3; i++) {
-            pager_led_set("a-button-led", 255);
-            usleep(500000);
-            pager_led_set("a-button-led", 0);
-            usleep(300000);
+        if (!skipped) {
+            pager_fill_rect(0, 60, width, 30, COLOR_BG_GREEN);
+            pager_draw_text_centered(70, "B button LED (Red)", COLOR_RED, 1);
+            pager_flip();
+            for (int i = 0; i < 3 && !skipped; i++) {
+                pager_led_set("a-button-led", 255);
+                if (skippable_delay(500)) { skipped = 1; break; }
+                pager_led_set("a-button-led", 0);
+                if (skippable_delay(300)) { skipped = 1; break; }
+            }
         }
 
-        /* Wait for user choice */
-        pager_fill_rect(0, 60, width, 30, COLOR_BG_GREEN);
-        pager_draw_text_centered(70, "LED test complete!", COLOR_WHITE, 1);
-        pager_flip();
+        pager_led_all_off();
 
-        while (1) {
-            pager_button_t btn = pager_wait_button();
-            if (btn & BTN_A) {
-                run_led_test = 0;
-                break;
-            } else if (btn & BTN_B) {
-                break;  /* Repeat */
+        if (skipped) {
+            run_led_test = 0;
+        } else {
+            /* Wait for user choice */
+            pager_fill_rect(0, 60, width, 30, COLOR_BG_GREEN);
+            pager_draw_text_centered(70, "LED test complete!", COLOR_WHITE, 1);
+            pager_flip();
+
+            while (1) {
+                pager_button_t btn = pager_wait_button();
+                if (btn & BTN_A) {
+                    run_led_test = 0;
+                    break;
+                } else if (btn & BTN_B) {
+                    break;  /* Repeat */
+                }
             }
         }
     }
@@ -176,68 +218,166 @@ int main(int argc, char *argv[]) {
     /* ----------------------------------------
      * 4. Audio and vibration
      * ---------------------------------------- */
-    printf("[4/7] Audio and vibration...\n");
+    printf("[4/8] Audio and vibration...\n");
 
     pager_clear(COLOR_BG_RED);
     pager_draw_text_centered(30, "Audio Demo", COLOR_WHITE, 2);
     pager_draw_text_centered(80, "Playing scale...", COLOR_GRAY, 1);
+    pager_draw_text_centered(200, "GREEN=skip", COLOR_GREEN, 1);
     pager_flip();
+
+    int skipped = 0;
 
     /* Play scale C4 to C5 */
     int notes[] = {262, 294, 330, 349, 392, 440, 494, 523};
-    for (int i = 0; i < 8; i++) {
+    for (int i = 0; i < 8 && !skipped; i++) {
         pager_beep(notes[i], 150);
-        pager_delay(50);
+        if (skippable_delay(50)) {
+            skipped = 1;
+        }
     }
 
-    usleep(300000);
+    if (!skipped) {
+        skipped = skippable_delay(300);
+    }
 
     /* Vibration */
-    pager_fill_rect(0, 70, width, 30, COLOR_BG_RED);
-    pager_draw_text_centered(80, "Vibrating...", COLOR_GRAY, 1);
-    pager_flip();
+    if (!skipped) {
+        pager_fill_rect(0, 70, width, 30, COLOR_BG_RED);
+        pager_draw_text_centered(80, "Vibrating...", COLOR_GRAY, 1);
+        pager_flip();
 
-    pager_vibrate(100);
-    pager_delay(100);
-    pager_vibrate(100);
-    pager_delay(100);
-    pager_vibrate(200);
+        pager_vibrate(100);
+        if (!skippable_delay(100)) {
+            pager_vibrate(100);
+            if (!skippable_delay(100)) {
+                pager_vibrate(200);
+                skippable_delay(300);
+            }
+        }
+    }
 
-    usleep(300000);
+    if (!skipped) {
+        /* RTTTL modes demo */
+        const char *melody = "Demo:d=4,o=5,b=140:8c,8e,8g,c6";
 
-    /* RTTTL modes demo */
-    const char *melody = "Demo:d=4,o=5,b=140:8c,8e,8g,c6";
+        /* Mode 1: Sound only */
+        pager_fill_rect(0, 70, width, 30, COLOR_BG_RED);
+        pager_draw_text_centered(80, "RTTTL: Sound only", COLOR_GRAY, 1);
+        pager_flip();
+        pager_play_rtttl(melody);
+        while (pager_audio_playing() && !skipped) {
+            if (skippable_delay(100)) skipped = 1;
+        }
 
-    /* Mode 1: Sound only */
-    pager_fill_rect(0, 70, width, 30, COLOR_BG_RED);
-    pager_draw_text_centered(80, "RTTTL: Sound only", COLOR_GRAY, 1);
-    pager_flip();
-    pager_play_rtttl_sync(melody, 0);
-    usleep(300000);
+        if (!skipped && !skippable_delay(300)) {
+            /* Mode 2: Sound + Vibration */
+            pager_fill_rect(0, 70, width, 30, COLOR_BG_RED);
+            pager_draw_text_centered(80, "RTTTL: Sound + Vibrate", COLOR_CYAN, 1);
+            pager_flip();
+            pager_play_rtttl_ex(melody, RTTTL_SOUND_VIBRATE);
+            while (pager_audio_playing() && !skipped) {
+                if (skippable_delay(100)) skipped = 1;
+            }
 
-    /* Mode 2: Sound + Vibration */
-    pager_fill_rect(0, 70, width, 30, COLOR_BG_RED);
-    pager_draw_text_centered(80, "RTTTL: Sound + Vibrate", COLOR_CYAN, 1);
-    pager_flip();
-    pager_play_rtttl_sync(melody, 1);
-    usleep(300000);
+            if (!skipped && !skippable_delay(300)) {
+                /* Mode 3: Vibration only (silent) */
+                pager_fill_rect(0, 70, width, 30, COLOR_BG_RED);
+                pager_draw_text_centered(80, "RTTTL: Vibrate only (silent)", COLOR_YELLOW, 1);
+                pager_flip();
+                pager_play_rtttl_ex(melody, RTTTL_VIBRATE_ONLY);
+                while (pager_audio_playing() && !skipped) {
+                    if (skippable_delay(100)) skipped = 1;
+                }
+            }
+        }
+    }
 
-    /* Mode 3: Vibration only (silent) */
-    pager_fill_rect(0, 70, width, 30, COLOR_BG_RED);
-    pager_draw_text_centered(80, "RTTTL: Vibrate only (silent)", COLOR_YELLOW, 1);
-    pager_flip();
-    pager_play_rtttl_ex(melody, RTTTL_VIBRATE_ONLY);
-    usleep(2000000);  /* Wait for it to finish */
+    /* Always stop audio/vibration when leaving this section */
     pager_stop_audio();
 
-    usleep(300000);
-
+    pager_fill_rect(0, 70, width, 150, COLOR_BG_RED);
+    pager_draw_text_centered(80, "Audio test complete!", COLOR_WHITE, 1);
     wait_for_green(NULL);
 
     /* ----------------------------------------
-     * 5. TTF Font rendering
+     * 5. Brightness control
      * ---------------------------------------- */
-    printf("[5/7] TTF Font rendering...\n");
+    printf("[5/8] Brightness control...\n");
+
+    pager_clear(COLOR_BG);
+    pager_draw_text_centered(30, "Brightness Demo", COLOR_WHITE, 2);
+    pager_draw_text_centered(200, "GREEN=skip", COLOR_GREEN, 1);
+    pager_flip();
+
+    skipped = 0;
+
+    /* Get current brightness to restore later */
+    int original_brightness = pager_get_brightness();
+
+    /* Dim down */
+    pager_fill_rect(0, 70, width, 50, COLOR_BG);
+    pager_draw_text_centered(80, "Dimming down...", COLOR_GRAY, 1);
+    pager_flip();
+
+    for (int level = 100; level >= 20 && !skipped; level -= 10) {
+        pager_set_brightness(level);
+        pager_fill_rect(0, 110, width, 30, COLOR_BG);
+        char brightness_text[32];
+        snprintf(brightness_text, sizeof(brightness_text), "Brightness: %d%%", level);
+        pager_draw_text_centered(120, brightness_text, COLOR_YELLOW, 1);
+        pager_flip();
+        if (skippable_delay(300)) {
+            skipped = 1;
+        }
+    }
+
+    if (!skipped) {
+        /* Brighten up */
+        pager_fill_rect(0, 70, width, 50, COLOR_BG);
+        pager_draw_text_centered(80, "Brightening up...", COLOR_GRAY, 1);
+        pager_flip();
+
+        for (int level = 20; level <= 100 && !skipped; level += 10) {
+            pager_set_brightness(level);
+            pager_fill_rect(0, 110, width, 30, COLOR_BG);
+            char brightness_text[32];
+            snprintf(brightness_text, sizeof(brightness_text), "Brightness: %d%%", level);
+            pager_draw_text_centered(120, brightness_text, COLOR_YELLOW, 1);
+            pager_flip();
+            if (skippable_delay(300)) {
+                skipped = 1;
+            }
+        }
+    }
+
+    if (!skipped) {
+        /* Screen off/on test */
+        pager_fill_rect(0, 70, width, 80, COLOR_BG);
+        pager_draw_text_centered(80, "Screen off in 2 seconds...", COLOR_RED, 1);
+        pager_flip();
+        if (!skippable_delay(2000)) {
+            pager_screen_off();
+            sleep(2);  /* Non-skippable 2 second delay */
+            pager_screen_on();
+            pager_fill_rect(0, 70, width, 80, COLOR_BG);
+            pager_draw_text_centered(80, "Screen back on!", COLOR_GREEN, 1);
+            pager_flip();
+            skippable_delay(500);
+        }
+    }
+
+    /* Restore original brightness */
+    pager_set_brightness(original_brightness > 0 ? original_brightness : 80);
+
+    pager_fill_rect(0, 70, width, 150, COLOR_BG);
+    pager_draw_text_centered(80, "Brightness test complete!", COLOR_WHITE, 1);
+    wait_for_green(NULL);
+
+    /* ----------------------------------------
+     * 6. TTF Font rendering
+     * ---------------------------------------- */
+    printf("[6/8] TTF Font rendering...\n");
 
     pager_clear(COLOR_BG_BLUE);
     pager_draw_text_centered(10, "TTF Font Demo", COLOR_YELLOW, 2);
@@ -270,9 +410,9 @@ int main(int argc, char *argv[]) {
     wait_for_green(NULL);
 
     /* ----------------------------------------
-     * 6. Image loading (JPG, PNG, BMP)
+     * 7. Image loading (JPG, PNG, BMP)
      * ---------------------------------------- */
-    printf("[6/7] Image loading...\n");
+    printf("[7/8] Image loading...\n");
 
     pager_clear(COLOR_BLACK);
     pager_draw_text_centered(10, "Image Demo", COLOR_YELLOW, 2);
@@ -319,9 +459,9 @@ int main(int argc, char *argv[]) {
     wait_for_green(NULL);
 
     /* ----------------------------------------
-     * 7. Button input - wait for ALL buttons
+     * 8. Button input - wait for ALL buttons
      * ---------------------------------------- */
-    printf("[7/7] Button input...\n");
+    printf("[8/8] Button input...\n");
 
     /* Track which buttons have been pressed */
     int btn_up = 0, btn_down = 0, btn_left = 0, btn_right = 0;

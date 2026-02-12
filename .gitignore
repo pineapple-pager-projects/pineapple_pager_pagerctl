@@ -2,10 +2,9 @@
 .DS_Store
 ._*
 
-# Build artifacts (binaries are pre-built for convenience)
-# Uncomment to exclude binaries from git:
-# payloads/user/examples/PAGERCTL/pagerctl
-# payloads/user/examples/PAGERCTL/libpager.so
+# Build artifacts (compile with 'make')
+payloads/user/examples/PAGERCTL/libpagerctl.so
+payloads/user/examples/PAGERCTL/examples/demo
 
 # Native test builds
 *_native

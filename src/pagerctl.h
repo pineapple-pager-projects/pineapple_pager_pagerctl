@@ -435,6 +435,16 @@ int pager_get_brightness(void);
  */
 int pager_get_max_brightness(void);
 
+/* Turn screen off (sets brightness to 0).
+ * Returns 0 on success, -1 if backlight control not available.
+ */
+int pager_screen_off(void);
+
+/* Turn screen on (sets brightness to 80%).
+ * Returns 0 on success, -1 if backlight control not available.
+ */
+int pager_screen_on(void);
+
 /*
  * ============================================================
  * AUDIO EXTENSIONS

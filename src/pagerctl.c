@@ -548,6 +548,8 @@ int pager_draw_char(int x, int y, char c, uint16_t color, font_size_t size) {
 }
 
 int pager_draw_text(int x, int y, const char *text, uint16_t color, font_size_t size) {
+    if (!text) return 0;
+
     int start_x = x;
 
     while (*text) {
@@ -564,12 +566,16 @@ int pager_draw_text(int x, int y, const char *text, uint16_t color, font_size_t 
 }
 
 void pager_draw_text_centered(int y, const char *text, uint16_t color, font_size_t size) {
+    if (!text) return;
+
     int width = pager_text_width(text, size);
     int x = (logical_width - width) / 2;
     pager_draw_text(x, y, text, color, size);
 }
 
 int pager_text_width(const char *text, font_size_t size) {
+    if (!text) return 0;
+
     int width = 0;
     int scale = (int)size;
 
@@ -619,6 +625,8 @@ static void queue_input_event(uint8_t button, pager_event_type_t type) {
 }
 
 void pager_poll_input(pager_input_t *input) {
+    if (!input) return;
+
     struct input_event ev;
     uint8_t new_buttons = prev_buttons;
 
@@ -671,6 +679,8 @@ void pager_poll_input(pager_input_t *input) {
  */
 
 int pager_get_input_event(pager_input_event_t *event) {
+    if (!event) return 0;
+
     pthread_mutex_lock(&input_mutex);
 
     /* First, read any new events from the device */
@@ -819,24 +829,6 @@ static int get_note_freq(int note, int octave) {
     return base_freq;
 }
 
-/* Play a single tone using the buzzer sysfs interface */
-static void buzzer_tone(int freq, int duration_ms) {
-    FILE *f;
-
-    if (freq > 0) {
-        f = fopen("/sys/class/leds/buzzer/frequency", "w");
-        if (f) { fprintf(f, "%d", freq); fclose(f); }
-
-        f = fopen("/sys/class/leds/buzzer/brightness", "w");
-        if (f) { fprintf(f, "255"); fclose(f); }
-    }
-
-    usleep(duration_ms * 1000);
-
-    f = fopen("/sys/class/leds/buzzer/brightness", "w");
-    if (f) { fprintf(f, "0"); fclose(f); }
-}
-
 /* Parse and play RTTTL in child process with mode support */
 static void play_rtttl_child_ex(const char *rtttl, int mode) {
     /* mode: 0=sound only, 1=sound+vibrate, 2=vibrate only */
@@ -871,6 +863,9 @@ static void play_rtttl_child_ex(const char *rtttl, int mode) {
     }
 
     if (*p == ':') p++;
+
+    /* Protect against division by zero */
+    if (bpm <= 0) bpm = 120;
 
     /* Calculate whole note duration in ms */
     int whole_note_ms = (60 * 1000 * 4) / bpm;
@@ -989,6 +984,8 @@ static void play_rtttl_child_ex(const char *rtttl, int mode) {
 }
 
 void pager_play_rtttl(const char *rtttl) {
+    if (!rtttl) return;
+
     /* Stop any existing audio first */
     pager_stop_audio();
 
@@ -1002,6 +999,8 @@ void pager_play_rtttl(const char *rtttl) {
 }
 
 void pager_play_rtttl_ex(const char *rtttl, rtttl_mode_t mode) {
+    if (!rtttl) return;
+
     /* Stop any existing audio first */
     pager_stop_audio();
 
@@ -1017,6 +1016,10 @@ void pager_play_rtttl_ex(const char *rtttl, rtttl_mode_t mode) {
 void pager_stop_audio(void) {
     /* Turn off the buzzer hardware FIRST */
     FILE *f = fopen("/sys/class/leds/buzzer/brightness", "w");
+    if (f) { fprintf(f, "0"); fclose(f); }
+
+    /* Also turn off the vibrator */
+    f = fopen(VIBRATOR_PATH, "w");
     if (f) { fprintf(f, "0"); fclose(f); }
 
     if (audio_pid > 0) {
@@ -1062,6 +1065,8 @@ void pager_vibrate(int duration_ms) {
 }
 
 void pager_vibrate_pattern(const char *pattern) {
+    if (!pattern) return;
+
     char buf[256];
     strncpy(buf, pattern, sizeof(buf) - 1);
     buf[sizeof(buf) - 1] = '\0';
@@ -1094,6 +1099,8 @@ void pager_vibrate_pattern(const char *pattern) {
 #define LED_BASE_PATH "/sys/class/leds"
 
 void pager_led_set(const char *name, int brightness) {
+    if (!name) return;
+
     char path[256];
     snprintf(path, sizeof(path), "%s/%s/brightness", LED_BASE_PATH, name);
     FILE *f = fopen(path, "w");
@@ -1101,6 +1108,8 @@ void pager_led_set(const char *name, int brightness) {
 }
 
 void pager_led_rgb(const char *button, uint8_t r, uint8_t g, uint8_t b) {
+    if (!button) return;
+
     char path[256];
     FILE *f;
 
@@ -1118,6 +1127,8 @@ void pager_led_rgb(const char *button, uint8_t r, uint8_t g, uint8_t b) {
 }
 
 void pager_led_dpad(const char *direction, uint32_t color) {
+    if (!direction) return;
+
     uint8_t r = (color >> 16) & 0xFF;
     uint8_t g = (color >> 8) & 0xFF;
     uint8_t b = color & 0xFF;
@@ -1161,9 +1172,11 @@ void pager_beep(int freq, int duration_ms) {
  */
 
 void pager_play_rtttl_sync(const char *rtttl, int with_vibration) {
+    if (!rtttl) return;
+
     /* Use the existing child function but in this process */
     /* This is blocking - use pager_play_rtttl for background */
-    
+
     /* Simple implementation - parse and play inline */
     const char *p = rtttl;
     int default_dur = 4, default_oct = 5, bpm = 120;
@@ -1191,7 +1204,10 @@ void pager_play_rtttl_sync(const char *rtttl, int with_vibration) {
         if (*p == ',') p++;
     }
     if (*p == ':') p++;
-    
+
+    /* Protect against division by zero */
+    if (bpm <= 0) bpm = 120;
+
     int whole_note_ms = (60000 * 4) / bpm;
     FILE *vib_f = NULL;
     
@@ -1327,7 +1343,7 @@ static const char *find_backlight_path(void) {
     /* Try glob pattern as fallback */
     FILE *fp = popen("ls -d /sys/class/backlight/*/brightness 2>/dev/null | head -1", "r");
     if (fp) {
-        char buf[300];
+        char buf[256];
         if (fgets(buf, sizeof(buf), fp)) {
             /* Remove trailing newline and /brightness */
             char *nl = strchr(buf, '\n');
@@ -1335,6 +1351,7 @@ static const char *find_backlight_path(void) {
             char *last_slash = strrchr(buf, '/');
             if (last_slash) *last_slash = '\0';
             strncpy(backlight_path, buf, sizeof(backlight_path) - 1);
+            backlight_path[sizeof(backlight_path) - 1] = '\0';
         }
         pclose(fp);
     }
@@ -1404,8 +1421,19 @@ int pager_set_brightness(int percent) {
     if (!f) return -1;
 
     fprintf(f, "%d", value);
+    fflush(f);
     fclose(f);
     return 0;
+}
+
+int pager_screen_off(void) {
+    /* Setting brightness to 10% or below turns off the backlight on Pager */
+    return pager_set_brightness(10);
+}
+
+int pager_screen_on(void) {
+    /* Restore screen to a reasonable default brightness */
+    return pager_set_brightness(80);
 }
 
 /*
@@ -1440,6 +1468,9 @@ static unsigned char *load_font_file(const char *filename, size_t *size) {
 
 /* Get or load cached font */
 static int get_cached_font(const char *font_path, stbtt_fontinfo **font) {
+    /* Null check to prevent crash */
+    if (!font_path || !font) return -1;
+
     /* Check if already cached */
     if (cached_font_valid && strcmp(cached_font_path, font_path) == 0) {
         *font = &cached_font_info;
@@ -1485,6 +1516,9 @@ void pager_ttf_cleanup(void) {
 /* Draw TTF text at position */
 int pager_draw_ttf(int x, int y, const char *text, uint16_t color,
                    const char *font_path, float font_size) {
+    /* Null check to prevent crash */
+    if (!text) return 0;
+
     stbtt_fontinfo *font;
     if (get_cached_font(font_path, &font) < 0) {
         return -1;
@@ -1536,6 +1570,9 @@ int pager_draw_ttf(int x, int y, const char *text, uint16_t color,
 
 /* Get width of TTF text */
 int pager_ttf_width(const char *text, const char *font_path, float font_size) {
+    /* Null check to prevent crash */
+    if (!text) return 0;
+
     stbtt_fontinfo *font;
     if (get_cached_font(font_path, &font) < 0) {
         return -1;
@@ -1559,6 +1596,8 @@ int pager_ttf_width(const char *text, const char *font_path, float font_size) {
 
 /* Get height of TTF font */
 int pager_ttf_height(const char *font_path, float font_size) {
+    if (!font_path) return -1;
+
     stbtt_fontinfo *font;
     if (get_cached_font(font_path, &font) < 0) {
         return -1;
@@ -1574,6 +1613,8 @@ int pager_ttf_height(const char *font_path, float font_size) {
 /* Draw centered TTF text */
 void pager_draw_ttf_centered(int y, const char *text, uint16_t color,
                              const char *font_path, float font_size) {
+    if (!text || !font_path) return;
+
     int width = pager_ttf_width(text, font_path, font_size);
     if (width > 0) {
         int x = (logical_width - width) / 2;
@@ -1584,6 +1625,8 @@ void pager_draw_ttf_centered(int y, const char *text, uint16_t color,
 /* Draw right-aligned TTF text */
 void pager_draw_ttf_right(int y, const char *text, uint16_t color,
                           const char *font_path, float font_size, int padding) {
+    if (!text || !font_path) return;
+
     int width = pager_ttf_width(text, font_path, font_size);
     if (width > 0) {
         int x = logical_width - width - padding;
@@ -1604,6 +1647,8 @@ static inline uint16_t rgb888_to_rgb565(uint8_t r, uint8_t g, uint8_t b) {
 
 /* Load image from file and return pager_image_t structure */
 pager_image_t *pager_load_image(const char *filepath) {
+    if (!filepath) return NULL;
+
     int width, height, channels;
 
     /* Load image - request RGB (3 channels) */
@@ -1694,6 +1739,8 @@ void pager_draw_image_scaled(int x, int y, int dst_w, int dst_h, const pager_ima
 
 /* Load and draw image from file in one call (convenience function) */
 int pager_draw_image_file(int x, int y, const char *filepath) {
+    if (!filepath) return -1;
+
     pager_image_t *img = pager_load_image(filepath);
     if (!img) return -1;
 
@@ -1704,6 +1751,8 @@ int pager_draw_image_file(int x, int y, const char *filepath) {
 
 /* Load and draw image from file, scaled to fit */
 int pager_draw_image_file_scaled(int x, int y, int dst_w, int dst_h, const char *filepath) {
+    if (!filepath) return -1;
+
     pager_image_t *img = pager_load_image(filepath);
     if (!img) return -1;
 
@@ -1714,6 +1763,8 @@ int pager_draw_image_file_scaled(int x, int y, int dst_w, int dst_h, const char 
 
 /* Get image dimensions without loading full image */
 int pager_get_image_info(const char *filepath, int *width, int *height) {
+    if (!filepath) return -1;
+
     int w, h, channels;
     if (stbi_info(filepath, &w, &h, &channels)) {
         if (width) *width = w;

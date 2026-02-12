@@ -14,24 +14,39 @@ Hardware control library for the WiFi Pineapple Pager. Provides smooth, flicker-
 - **Vibration** - Haptic feedback
 - **Brightness** - Screen backlight control via sysfs
 
-## Quick Start
+## Building
 
-Pre-compiled binaries are included. Copy the payloads folder to your Pager:
+The Pager uses a MIPS processor, so C code must be cross-compiled. Docker handles this automatically on Linux, Mac, and Windows.
+
+**Note:** Hak5 does not accept pull requests with binaries included. You must compile the binaries yourself using the included source code, or download precompiled binaries from: https://github.com/pineapple-pager-projects/pineapple_pager_pagerctl
+
+### Requirements
+
+- Docker installed on your machine
+
+### Build and Deploy
 
 ```bash
-scp -r payloads/user/examples/PAGERCTL root@172.16.52.1:/root/payloads/user/examples/
+# Pull the OpenWrt SDK image (first time only)
+docker pull openwrt/sdk:mipsel_24kc-22.03.5
+
+# Build the library and demo
+make
+
+# Copy to your Pager
+scp -r payloads/user root@172.16.52.1:/mmc/root/payloads/
 ```
 
-Then on the Pager, navigate to: **Payloads > Examples > PAGERCTL Example**
+### Running
+
+On the Pager, navigate to: **Payloads > Examples > PAGERCTL Demo**
 
 Or run directly via SSH:
 ```bash
 ssh root@172.16.52.1
-cd /root/payloads/user/examples/PAGERCTL
+cd /mmc/root/payloads/user/examples/PAGERCTL
 /etc/init.d/pineapplepager stop
 python3 examples/demo.py   # Python demo
-# or
-./examples/demo            # C demo
 /etc/init.d/pineapplepager start
 ```
 
@@ -81,24 +96,45 @@ int main() {
 | `pager_get_width()` | Get screen width |
 | `pager_get_height()` | Get screen height |
 
+### Timing
+
+| Function | Description |
+|----------|-------------|
+| `pager_get_ticks()` | Get milliseconds since init |
+| `pager_delay(ms)` | Sleep for milliseconds |
+| `pager_frame_sync()` | Sync to ~30 FPS, returns frame time |
+
 ### Drawing
 
 | Function | Description |
 |----------|-------------|
-| `pager_draw_pixel(x, y, color)` | Draw single pixel |
+| `pager_set_pixel(x, y, color)` | Draw single pixel |
 | `pager_fill_rect(x, y, w, h, color)` | Draw filled rectangle |
-| `pager_rect(x, y, w, h, color)` | Draw rectangle outline |
-| `pager_line(x1, y1, x2, y2, color)` | Draw line |
+| `pager_draw_rect(x, y, w, h, color)` | Draw rectangle outline |
+| `pager_draw_line(x0, y0, x1, y1, color)` | Draw line |
+| `pager_hline(x, y, w, color)` | Draw horizontal line |
+| `pager_vline(x, y, h, color)` | Draw vertical line |
 | `pager_fill_circle(cx, cy, r, color)` | Draw filled circle |
+| `pager_draw_circle(cx, cy, r, color)` | Draw circle outline |
 
-### Text
+### Text (Bitmap Font)
 
 | Function | Description |
 |----------|-------------|
 | `pager_draw_text(x, y, text, color, scale)` | Draw text at position |
 | `pager_draw_text_centered(y, text, color, scale)` | Draw horizontally centered text |
+| `pager_text_width(text, scale)` | Get text width in pixels |
+| `pager_draw_number(x, y, num, color, scale)` | Draw integer number |
+
+### Text (TTF Fonts)
+
+| Function | Description |
+|----------|-------------|
 | `pager_draw_ttf(x, y, text, color, font, size)` | Draw TTF text |
 | `pager_draw_ttf_centered(y, text, color, font, size)` | Draw centered TTF text |
+| `pager_draw_ttf_right(y, text, color, font, size, padding)` | Draw right-aligned TTF text |
+| `pager_ttf_width(text, font, size)` | Get TTF text width |
+| `pager_ttf_height(font, size)` | Get TTF font height |
 
 ### Images
 
@@ -202,6 +238,7 @@ Note: A/B button LED sysfs names are swapped - "b-button-led" controls green/A, 
 | `pager_play_rtttl_ex(melody, mode)` | Play RTTTL with mode (see below) |
 | `pager_play_rtttl_sync(melody, vibrate)` | Play RTTTL blocking (0=sound, 1=sound+vibrate) |
 | `pager_stop_audio()` | Stop audio/vibration playback |
+| `pager_audio_playing()` | Check if audio is still playing (returns 1/0) |
 
 **RTTTL Playback Modes** (for `pager_play_rtttl_ex`):
 - `RTTTL_SOUND_ONLY` (0) - Sound only (default)
@@ -215,13 +252,17 @@ Note: A/B button LED sysfs names are swapped - "b-button-led" controls green/A, 
 | `pager_vibrate(duration_ms)` | Vibrate for duration |
 | `pager_vibrate_pattern(pattern)` | Play pattern "on,off,on,off,..." |
 
-### Brightness
+### Brightness / Screen Power
 
 | Function | Description |
 |----------|-------------|
 | `pager_set_brightness(percent)` | Set screen brightness (0-100%), returns 0 on success |
 | `pager_get_brightness()` | Get current brightness as percentage (0-100) |
 | `pager_get_max_brightness()` | Get hardware max brightness value |
+| `pager_screen_off()` | Turn screen off (brightness 0%) |
+| `pager_screen_on()` | Turn screen on (brightness 80%) |
+
+**Note:** On Pager hardware, setting brightness below ~10% turns off the backlight completely.
 
 **Python example:**
 ```python
@@ -232,6 +273,11 @@ p.set_brightness(50)
 current = p.get_brightness()
 print(f"Brightness: {current}%")
 
+# Turn screen off/on
+p.screen_off()
+p.delay(2000)
+p.screen_on()
+
 # Dim the screen gradually
 for level in range(100, 20, -10):
     p.set_brightness(level)
@@ -239,6 +285,13 @@ for level in range(100, 20, -10):
 ```
 
 Note: Returns -1 if backlight control is not available on the device.
+
+### Utilities
+
+| Function | Description |
+|----------|-------------|
+| `pager_random(max)` | Get random integer from 0 to max-1 |
+| `pager_seed_random(seed)` | Seed the random number generator |
 
 ## Colors
 
@@ -257,19 +310,18 @@ pagerctl/
 ├── src/
 │   ├── pagerctl.c          # Main library source
 │   ├── pagerctl.h          # Header file
-│   ├── stb_truetype.h      # TTF rendering
-│   ├── stb_image.h         # Image loading (JPG, PNG, BMP, GIF)
+│   ├── stb_truetype.h      # TTF rendering (stb library)
+│   ├── stb_image.h         # Image loading (stb library)
 │   └── demo.c              # C demo source
-├── payloads/user/examples/PAGERCTL/  # Payload directory
-│   ├── libpagerctl.so      # Compiled library
+├── payloads/user/examples/PAGERCTL/
 │   ├── pagerctl.py         # Python wrapper
-│   ├── payload.sh          # Pager payload entry
-│   ├── demo                # C demo binary
+│   ├── payload.sh          # Pager payload entry point
 │   ├── examples/
+│   │   ├── demo            # C demo (compiled)
 │   │   └── demo.py         # Python demo
-│   ├── fonts/              # TTF fonts
+│   ├── fonts/              # TTF fonts (Roboto, PressStart2P)
 │   └── images/             # Test images
-└── Makefile
+└── Makefile                # Build targets
 ```
 
 ## Creating Your Own Payload
@@ -305,46 +357,6 @@ with Pager() as p:
 
 - WiFi Pineapple Pager
 - Python3 + python3-ctypes (auto-installed by payload)
-
-## Building from Source
-
-Only needed if you modify the C source code. The Pager uses a MIPS processor, so C code must be cross-compiled.
-
-### Option 1: Docker (Recommended)
-
-Pull the OpenWrt SDK image:
-```bash
-docker pull openwrt/sdk:mipsel_24kc-22.03.5
-```
-
-Then use the Makefile targets:
-```bash
-make remote-build   # Build libpagerctl.so library
-make remote-demo    # Build C demo binary
-make fonts          # Download TTF fonts (optional)
-make deploy PAGER_IP=172.16.52.1  # Deploy to Pager
-```
-
-### Option 2: Local SDK Installation
-
-Download and extract the OpenWrt SDK:
-```bash
-# Download SDK
-wget https://downloads.openwrt.org/releases/22.03.5/targets/ramips/mt76x8/openwrt-sdk-22.03.5-ramips-mt76x8_gcc-11.2.0_musl.Linux-x86_64.tar.xz
-
-# Extract
-tar -xf openwrt-sdk-22.03.5-ramips-mt76x8_gcc-11.2.0_musl.Linux-x86_64.tar.xz
-
-# Add to PATH
-export PATH=$PWD/openwrt-sdk-22.03.5-ramips-mt76x8_gcc-11.2.0_musl.Linux-x86_64/staging_dir/toolchain-mipsel_24kc_gcc-11.2.0_musl/bin:$PATH
-export STAGING_DIR=$PWD/openwrt-sdk-22.03.5-ramips-mt76x8_gcc-11.2.0_musl.Linux-x86_64/staging_dir
-```
-
-Then compile directly:
-```bash
-mipsel-openwrt-linux-musl-gcc -Wall -O2 -shared -fPIC -o libpagerctl.so src/pagerctl.c -lm -lpthread
-mipsel-openwrt-linux-musl-gcc -Wall -O2 -I src -o demo src/demo.c -L. -l:libpagerctl.so -lm
-```
 
 ## License
 

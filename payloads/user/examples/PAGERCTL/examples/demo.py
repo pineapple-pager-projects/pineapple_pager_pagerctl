@@ -7,6 +7,7 @@ Demonstrates all hardware features:
 - Button input (including POWER button)
 - LED control
 - Audio (buzzer) and vibration
+- Brightness control
 
 Run with: python3 demo.py
 """
@@ -37,6 +38,17 @@ def wait_for_green(p, message="Press GREEN to continue..."):
             break
 
 
+def skippable_delay(p, ms):
+    """Delay that can be skipped with GREEN button. Returns True if skipped."""
+    start = time.time()
+    while (time.time() - start) * 1000 < ms:
+        current, pressed, _ = p.poll_input()
+        if pressed & Pager.BTN_A:
+            return True
+        time.sleep(0.05)
+    return False
+
+
 def main():
     with Pager() as p:
         p.set_rotation(270)  # Landscape mode
@@ -46,7 +58,7 @@ def main():
         # ------------------------------------
         # 1. Display basics
         # ------------------------------------
-        print("[1/7] Display basics...")
+        print("[1/8] Display basics...")
 
         p.clear(p.rgb(0, 0, 51))
         p.draw_text_centered(20, "PAGERCTL DEMO", p.YELLOW, 2)
@@ -66,7 +78,7 @@ def main():
         # ------------------------------------
         # 2. Screen properties and colors
         # ------------------------------------
-        print("[2/7] Screen properties...")
+        print("[2/8] Screen properties...")
 
         p.clear(p.BLACK)
         p.draw_text_centered(30, f"Screen: {p.width}x{p.height}", p.WHITE, 1)
@@ -84,131 +96,235 @@ def main():
         # ------------------------------------
         # 3. LED control
         # ------------------------------------
-        print("[3/7] LED control...")
+        print("[3/8] LED control...")
 
         run_led_test = True
         while run_led_test:
             p.clear(p.rgb(0, 17, 0))
             p.draw_text_centered(30, "LED Demo", p.WHITE, 2)
             p.draw_text_centered(70, "Watch D-pad + A/B buttons!", p.GRAY, 1)
-            # Draw GREEN and RED in their respective colors
-            p.draw_text(100, 200, "GREEN=continue", p.GREEN, 1)
-            p.draw_text(280, 200, "RED=repeat", p.RED, 1)
+            p.draw_text(100, 200, "GREEN=skip/continue", p.GREEN, 1)
+            p.draw_text(300, 200, "RED=repeat", p.RED, 1)
             p.flip()
+
+            skipped = False
 
             # Cycle through colors on D-pad LEDs
             led_colors = [0xFF0000, 0x00FF00, 0x0000FF, 0xFFFF00, 0xFF00FF, 0x00FFFF]
             dpad_leds = ["up", "right", "down", "left"]
 
             for color in led_colors:
+                if skipped:
+                    break
                 for led in dpad_leds:
                     p.led_dpad(led, color)
-                time.sleep(0.8)
+                if skippable_delay(p, 800):
+                    skipped = True
+                    break
 
-            p.led_all_off()
-            time.sleep(0.3)
+            if not skipped:
+                p.led_all_off()
+                if skippable_delay(p, 300):
+                    skipped = True
 
             # Test A button LED (Green button - right side)
-            # Note: sysfs names are swapped, "b-button-led" controls green/A
-            p.fill_rect(0, 60, p.width, 30, p.rgb(0, 17, 0))
-            p.draw_text_centered(70, "A button LED (Green)", p.GREEN, 1)
-            p.flip()
-            for _ in range(3):
-                p.led_set("b-button-led", 255)
-                time.sleep(0.5)
-                p.led_set("b-button-led", 0)
-                time.sleep(0.3)
-            time.sleep(0.3)
+            if not skipped:
+                p.fill_rect(0, 60, p.width, 30, p.rgb(0, 17, 0))
+                p.draw_text_centered(70, "A button LED (Green)", p.GREEN, 1)
+                p.flip()
+                for _ in range(3):
+                    if skipped:
+                        break
+                    p.led_set("b-button-led", 255)
+                    if skippable_delay(p, 500):
+                        skipped = True
+                        break
+                    p.led_set("b-button-led", 0)
+                    if skippable_delay(p, 300):
+                        skipped = True
+                        break
 
             # Test B button LED (Red button - left side)
-            # Note: sysfs names are swapped, "a-button-led" controls red/B
-            p.fill_rect(0, 60, p.width, 30, p.rgb(0, 17, 0))
-            p.draw_text_centered(70, "B button LED (Red)", p.RED, 1)
-            p.flip()
-            for _ in range(3):
-                p.led_set("a-button-led", 255)
-                time.sleep(0.5)
-                p.led_set("a-button-led", 0)
-                time.sleep(0.3)
+            if not skipped:
+                p.fill_rect(0, 60, p.width, 30, p.rgb(0, 17, 0))
+                p.draw_text_centered(70, "B button LED (Red)", p.RED, 1)
+                p.flip()
+                for _ in range(3):
+                    if skipped:
+                        break
+                    p.led_set("a-button-led", 255)
+                    if skippable_delay(p, 500):
+                        skipped = True
+                        break
+                    p.led_set("a-button-led", 0)
+                    if skippable_delay(p, 300):
+                        skipped = True
+                        break
 
-            # Wait for user choice
-            p.fill_rect(0, 60, p.width, 30, p.rgb(0, 17, 0))
-            p.draw_text_centered(70, "LED test complete!", p.WHITE, 1)
-            p.flip()
+            p.led_all_off()
 
-            while True:
-                button = p.wait_button()
-                if button & Pager.BTN_A:
-                    run_led_test = False
-                    break
-                elif button & Pager.BTN_B:
-                    # Repeat test
-                    break
+            if skipped:
+                run_led_test = False
+            else:
+                # Wait for user choice
+                p.fill_rect(0, 60, p.width, 30, p.rgb(0, 17, 0))
+                p.draw_text_centered(70, "LED test complete!", p.WHITE, 1)
+                p.flip()
+
+                while True:
+                    button = p.wait_button()
+                    if button & Pager.BTN_A:
+                        run_led_test = False
+                        break
+                    elif button & Pager.BTN_B:
+                        break
 
         # ------------------------------------
         # 4. Audio and vibration
         # ------------------------------------
-        print("[4/7] Audio and vibration...")
+        print("[4/8] Audio and vibration...")
 
         p.clear(p.rgb(34, 0, 17))
         p.draw_text_centered(30, "Audio Demo", p.WHITE, 2)
         p.draw_text_centered(80, "Playing scale...", p.GRAY, 1)
+        p.draw_text_centered(200, "GREEN=skip", p.GREEN, 1)
         p.flip()
 
+        skipped = False
         notes = [262, 294, 330, 349, 392, 440, 494, 523]  # C4 to C5
         for freq in notes:
+            if skipped:
+                break
             p.beep(freq, 150)
-            p.delay(50)
+            if skippable_delay(p, 50):
+                skipped = True
+                break
 
-        time.sleep(0.3)
+        if not skipped:
+            skipped = skippable_delay(p, 300)
 
         # Vibration
-        p.fill_rect(0, 70, p.width, 30, p.rgb(34, 0, 17))
-        p.draw_text_centered(80, "Vibrating...", p.GRAY, 1)
-        p.flip()
+        if not skipped:
+            p.fill_rect(0, 70, p.width, 30, p.rgb(34, 0, 17))
+            p.draw_text_centered(80, "Vibrating...", p.GRAY, 1)
+            p.flip()
 
-        p.vibrate(100)
-        p.delay(100)
-        p.vibrate(100)
-        p.delay(100)
-        p.vibrate(200)
+            p.vibrate(100)
+            if not skippable_delay(p, 100):
+                p.vibrate(100)
+                if not skippable_delay(p, 100):
+                    p.vibrate(200)
+                    skippable_delay(p, 300)
 
-        time.sleep(0.3)
+        if not skipped:
+            # RTTTL modes demo
+            melody = "Demo:d=4,o=5,b=140:8c,8e,8g,c6"
 
-        # RTTTL modes demo
-        melody = "Demo:d=4,o=5,b=140:8c,8e,8g,c6"
+            # Mode 1: Sound only
+            p.fill_rect(0, 70, p.width, 30, p.rgb(34, 0, 17))
+            p.draw_text_centered(80, "RTTTL: Sound only", p.GRAY, 1)
+            p.flip()
+            p.play_rtttl(melody, mode=Pager.RTTTL_SOUND_ONLY)
+            while p.audio_playing() and not skipped:
+                if skippable_delay(p, 100):
+                    skipped = True
+            if not skipped and not skippable_delay(p, 300):
+                # Mode 2: Sound + Vibration
+                p.fill_rect(0, 70, p.width, 30, p.rgb(34, 0, 17))
+                p.draw_text_centered(80, "RTTTL: Sound + Vibrate", p.CYAN, 1)
+                p.flip()
+                p.play_rtttl(melody, mode=Pager.RTTTL_SOUND_VIBRATE)
+                while p.audio_playing() and not skipped:
+                    if skippable_delay(p, 100):
+                        skipped = True
+                if not skipped and not skippable_delay(p, 300):
+                    # Mode 3: Vibration only (silent)
+                    p.fill_rect(0, 70, p.width, 30, p.rgb(34, 0, 17))
+                    p.draw_text_centered(80, "RTTTL: Vibrate only (silent)", p.YELLOW, 1)
+                    p.flip()
+                    p.play_rtttl(melody, mode=Pager.RTTTL_VIBRATE_ONLY)
+                    while p.audio_playing() and not skipped:
+                        if skippable_delay(p, 100):
+                            skipped = True
 
-        # Mode 1: Sound only
-        p.fill_rect(0, 70, p.width, 30, p.rgb(34, 0, 17))
-        p.draw_text_centered(80, "RTTTL: Sound only", p.GRAY, 1)
-        p.flip()
-        p.play_rtttl_sync(melody, with_vibration=False)
-        time.sleep(0.3)
-
-        # Mode 2: Sound + Vibration
-        p.fill_rect(0, 70, p.width, 30, p.rgb(34, 0, 17))
-        p.draw_text_centered(80, "RTTTL: Sound + Vibrate", p.CYAN, 1)
-        p.flip()
-        p.play_rtttl_sync(melody, with_vibration=True)
-        time.sleep(0.3)
-
-        # Mode 3: Vibration only (silent)
-        p.fill_rect(0, 70, p.width, 30, p.rgb(34, 0, 17))
-        p.draw_text_centered(80, "RTTTL: Vibrate only (silent)", p.YELLOW, 1)
-        p.flip()
-        p.play_rtttl(melody, mode=Pager.RTTTL_VIBRATE_ONLY)
-        # Wait for it to finish (approx duration)
-        time.sleep(2.0)
+        # Always stop audio/vibration when leaving this section
         p.stop_audio()
 
-        time.sleep(0.3)
-
+        p.fill_rect(0, 70, p.width, 150, p.rgb(34, 0, 17))
+        p.draw_text_centered(80, "Audio test complete!", p.WHITE, 1)
         wait_for_green(p)
 
         # ------------------------------------
-        # 5. TTF Font rendering
+        # 5. Brightness control
         # ------------------------------------
-        print("[5/7] TTF Font rendering...")
+        print("[5/8] Brightness control...")
+
+        p.clear(p.rgb(0, 0, 51))
+        p.draw_text_centered(30, "Brightness Demo", p.WHITE, 2)
+        p.draw_text_centered(200, "GREEN=skip", p.GREEN, 1)
+        p.flip()
+
+        skipped = False
+
+        # Get current brightness to restore later
+        original_brightness = p.get_brightness()
+
+        # Dim down
+        p.fill_rect(0, 70, p.width, 50, p.rgb(0, 0, 51))
+        p.draw_text_centered(80, "Dimming down...", p.GRAY, 1)
+        p.flip()
+
+        for level in range(100, 19, -10):
+            if skipped:
+                break
+            p.set_brightness(level)
+            p.fill_rect(0, 110, p.width, 30, p.rgb(0, 0, 51))
+            p.draw_text_centered(120, f"Brightness: {level}%", p.YELLOW, 1)
+            p.flip()
+            if skippable_delay(p, 300):
+                skipped = True
+
+        if not skipped:
+            # Brighten up
+            p.fill_rect(0, 70, p.width, 50, p.rgb(0, 0, 51))
+            p.draw_text_centered(80, "Brightening up...", p.GRAY, 1)
+            p.flip()
+
+            for level in range(20, 101, 10):
+                if skipped:
+                    break
+                p.set_brightness(level)
+                p.fill_rect(0, 110, p.width, 30, p.rgb(0, 0, 51))
+                p.draw_text_centered(120, f"Brightness: {level}%", p.YELLOW, 1)
+                p.flip()
+                if skippable_delay(p, 300):
+                    skipped = True
+
+        if not skipped:
+            # Screen off/on test
+            p.fill_rect(0, 70, p.width, 80, p.rgb(0, 0, 51))
+            p.draw_text_centered(80, "Screen off in 2 seconds...", p.RED, 1)
+            p.flip()
+            if not skippable_delay(p, 2000):
+                p.screen_off()
+                time.sleep(2)  # Non-skippable 2 second delay
+                p.screen_on()
+                p.fill_rect(0, 70, p.width, 80, p.rgb(0, 0, 51))
+                p.draw_text_centered(80, "Screen back on!", p.GREEN, 1)
+                p.flip()
+                skippable_delay(p, 500)
+
+        # Restore original brightness
+        p.set_brightness(original_brightness if original_brightness > 0 else 80)
+
+        p.fill_rect(0, 70, p.width, 150, p.rgb(0, 0, 51))
+        p.draw_text_centered(80, "Brightness test complete!", p.WHITE, 1)
+        wait_for_green(p)
+
+        # ------------------------------------
+        # 6. TTF Font rendering
+        # ------------------------------------
+        print("[6/8] TTF Font rendering...")
 
         p.clear(p.rgb(0, 0, 32))
         p.draw_text_centered(10, "TTF Font Demo", p.YELLOW, 2)
@@ -239,9 +355,9 @@ def main():
         wait_for_green(p)
 
         # ------------------------------------
-        # 6. Image loading (JPG, PNG, BMP)
+        # 7. Image loading (JPG, PNG, BMP)
         # ------------------------------------
-        print("[6/7] Image loading...")
+        print("[7/8] Image loading...")
 
         p.clear(p.BLACK)
         p.draw_text_centered(10, "Image Demo", p.YELLOW, 2)
@@ -280,9 +396,9 @@ def main():
         wait_for_green(p)
 
         # ------------------------------------
-        # 7. Button input - wait for ALL buttons
+        # 8. Button input - wait for ALL buttons
         # ------------------------------------
-        print("[7/7] Button input...")
+        print("[8/8] Button input...")
 
         # Track which buttons have been pressed
         buttons_pressed = {

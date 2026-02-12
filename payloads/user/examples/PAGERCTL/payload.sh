@@ -1,5 +1,5 @@
 #!/bin/bash
-# Title: PAGERCTL Example
+# Title: PAGERCTL Demo
 # Description: Hardware control toolkit - display, buttons, LEDs, buzzer, vibration
 # Author: brAinphreAk
 # Version: 1.0
