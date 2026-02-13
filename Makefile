@@ -3,7 +3,7 @@
 
 # Directories
 SRC_DIR = src
-PAYLOAD_DIR = payloads/user/examples/PAGERCTL
+PAYLOAD_DIR = payloads/user/utilities/PAGERCTL
 
 # Compiler flags
 CFLAGS = -Wall -O2

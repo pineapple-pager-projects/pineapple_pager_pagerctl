@@ -25,7 +25,7 @@
 #include "pagerctl.h"
 
 /* Font paths */
-#define FONT_DIR "/root/payloads/user/examples/PAGERCTL/fonts"
+#define FONT_DIR "/root/payloads/user/utilities/PAGERCTL/fonts"
 #define ROBOTO FONT_DIR "/Roboto-Regular.ttf"
 #define ROBOTO_BOLD FONT_DIR "/Roboto-Bold.ttf"
 #define PRESS_START FONT_DIR "/PressStart2P.ttf"
@@ -418,7 +418,7 @@ int main(int argc, char *argv[]) {
     pager_draw_text_centered(10, "Image Demo", COLOR_YELLOW, 2);
 
     /* Check if test image exists */
-    #define TEST_IMAGE "/root/payloads/user/examples/PAGERCTL/images/test_image.jpg"
+    #define TEST_IMAGE "/root/payloads/user/utilities/PAGERCTL/images/test_image.jpg"
 
     if (file_exists(TEST_IMAGE)) {
         int img_w, img_h;

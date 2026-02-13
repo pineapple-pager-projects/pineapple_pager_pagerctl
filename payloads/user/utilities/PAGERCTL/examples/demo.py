@@ -22,7 +22,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from pagerctl import Pager
 
 # Font paths for TTF demo
-FONT_DIR = "/root/payloads/user/examples/PAGERCTL/fonts"
+FONT_DIR = "/root/payloads/user/utilities/PAGERCTL/fonts"
 ROBOTO = f"{FONT_DIR}/Roboto-Regular.ttf"
 ROBOTO_BOLD = f"{FONT_DIR}/Roboto-Bold.ttf"
 PRESS_START = f"{FONT_DIR}/PressStart2P.ttf"
@@ -362,7 +362,7 @@ def main():
         p.clear(p.BLACK)
         p.draw_text_centered(10, "Image Demo", p.YELLOW, 2)
 
-        TEST_IMAGE = "/root/payloads/user/examples/PAGERCTL/images/test_image.jpg"
+        TEST_IMAGE = "/root/payloads/user/utilities/PAGERCTL/images/test_image.jpg"
 
         if os.path.exists(TEST_IMAGE):
             img_info = p.get_image_info(TEST_IMAGE)

@@ -39,12 +39,12 @@ scp -r payloads/user root@172.16.52.1:/mmc/root/payloads/
 
 ### Running
 
-On the Pager, navigate to: **Payloads > Examples > PAGERCTL Demo**
+On the Pager, navigate to: **Payloads > Utilities > PAGERCTL Demo**
 
 Or run directly via SSH:
 ```bash
 ssh root@172.16.52.1
-cd /mmc/root/payloads/user/examples/PAGERCTL
+cd /mmc/root/payloads/user/utilities/PAGERCTL
 /etc/init.d/pineapplepager stop
 python3 examples/demo.py   # Python demo
 /etc/init.d/pineapplepager start
@@ -313,7 +313,7 @@ pagerctl/
 │   ├── stb_truetype.h      # TTF rendering (stb library)
 │   ├── stb_image.h         # Image loading (stb library)
 │   └── demo.c              # C demo source
-├── payloads/user/examples/PAGERCTL/
+├── payloads/user/utilities/PAGERCTL/
 │   ├── pagerctl.py         # Python wrapper
 │   ├── payload.sh          # Pager payload entry point
 │   ├── examples/

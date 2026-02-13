@@ -5,7 +5,7 @@
 # Version: 1.0
 # Category: Examples
 
-PAYLOAD_DIR="/root/payloads/user/examples/PAGERCTL"
+PAYLOAD_DIR="/root/payloads/user/utilities/PAGERCTL"
 
 #
 # Setup paths for Python and shared library
