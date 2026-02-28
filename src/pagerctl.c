@@ -1647,6 +1647,7 @@ static inline uint16_t rgb888_to_rgb565(uint8_t r, uint8_t g, uint8_t b) {
 
 /* Read a pixel from the framebuffer (with rotation transform) */
 static inline uint16_t read_pixel(int x, int y) {
+    if (!framebuffer) return 0;
     int fx, fy;
     transform_coords(x, y, &fx, &fy);
     if (fx < 0 || fx >= PAGER_FB_WIDTH || fy < 0 || fy >= PAGER_FB_HEIGHT) return 0;
@@ -1692,6 +1693,13 @@ pager_image_t *pager_load_image(const char *filepath) {
     unsigned char *data = stbi_load(filepath, &width, &height, &channels, req_channels);
     if (!data) {
         fprintf(stderr, "Failed to load image: %s\n", filepath);
+        return NULL;
+    }
+
+    /* Sanity-check dimensions to prevent integer overflow in malloc */
+    if (width <= 0 || height <= 0 || width > 4096 || height > 4096) {
+        fprintf(stderr, "Image dimensions out of range: %dx%d\n", width, height);
+        stbi_image_free(data);
         return NULL;
     }
 
@@ -1797,12 +1805,15 @@ void pager_draw_image_scaled(int x, int y, int dst_w, int dst_h, const pager_ima
         if (screen_y < 0 || screen_y >= logical_height) continue;
 
         int src_y = (dy * img->height) / dst_h;
+        if (src_y >= img->height) src_y = img->height - 1;
 
         for (int dx = 0; dx < dst_w; dx++) {
             int screen_x = x + dx;
             if (screen_x < 0 || screen_x >= logical_width) continue;
 
-            int src_idx = src_y * img->width + (dx * img->width) / dst_w;
+            int src_x = (dx * img->width) / dst_w;
+            if (src_x >= img->width) src_x = img->width - 1;
+            int src_idx = src_y * img->width + src_x;
             uint16_t color = img->pixels[src_idx];
 
             if (img->alpha) {
@@ -1888,12 +1899,14 @@ void pager_draw_image_scaled_rotated(int x, int y, int dst_w, int dst_h,
 
         /* Map to rotated source coordinate */
         int ry = (dy * rot_h) / dst_h;
+        if (ry >= rot_h) ry = rot_h - 1;
 
         for (int dx = 0; dx < dst_w; dx++) {
             int screen_x = x + dx;
             if (screen_x < 0 || screen_x >= logical_width) continue;
 
             int rx = (dx * rot_w) / dst_w;
+            if (rx >= rot_w) rx = rot_w - 1;
 
             /* Map rotated coords back to original image coords */
             int orig_x, orig_y;
